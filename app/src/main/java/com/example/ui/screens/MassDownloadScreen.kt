@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,7 +60,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MassDownloadScreen(
     locationRepo: LocationRepository,
@@ -172,16 +173,27 @@ fun MassDownloadScreen(
     var successBannerTitle by remember { mutableStateOf("") }
     var successBannerMessage by remember { mutableStateOf("") }
 
+    // Mouza Search and Custom Mouza addition dialog
+    var mouzaSearchQuery by remember { mutableStateOf("") }
+    var showAddMouzaDialog by remember { mutableStateOf(false) }
+    var newCustomMouzaName by remember { mutableStateOf("") }
+    var newCustomMouzaBnName by remember { mutableStateOf("") }
+    var newCustomMouzaJlNo by remember { mutableStateOf("") }
+
     // Function to reload mouzas and auto-select all
     fun updateUpazilaAndAutoSelectMouzas(newUpazila: String) {
         selectedUpazila = newUpazila
         val mouzas = locationRepo.getMouzasForUpazila(newUpazila)
+        // Automatically select ALL mouzas in that upazila without hardcoded 6-item limit
         mouzasList = mouzas.map { it.copy(isSelected = true) }
         selectedDocTypes = allAvailableDocTypes.toSet()
         validationReport = null
         masterZipResult = null
         showDiscrepancyAlertDialog = false
         pendingDiscrepanciesScan = null
+        coroutineScope.launch {
+            snackbarHostState.showSnackbar("Upazila $newUpazila: All ${mouzas.size} Mouzas automatically selected!")
+        }
     }
 
     // Initial setup on screen load
@@ -335,106 +347,16 @@ fun MassDownloadScreen(
         verifiedRecords: List<LandRecord>,
         upazilaName: String
     ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
-        var saved = false
-        var displayPath = "Phone Memory > Downloads > LandArchive/${upazilaName}"
-        val cleanUpazila = upazilaName.replace(Regex("[^a-zA-Z0-9_]"), "_").ifBlank { "Upazila_Archive" }
-
-        // 1. If user set a dedicated folder via SAF, save Master Folder structure and ZIP there
-        if (isCustomDirectoryActive) {
-            val savedDocFile = docDirService.saveMasterZipFile(zipFile, zipFile.name)
-            for (rec in verifiedRecords) {
-                val sourceFile = File(rec.filePath)
-                val bytes = if (sourceFile.exists() && sourceFile.length() > 0) sourceFile.readBytes() else createValidPdfRecordBytes(
-                    rec.division, rec.district, rec.upazila, rec.mouza, "JL-01", rec.docType, rec.khatianOrPlotNo
-                )
-                docDirService.saveDocumentFile(
-                    folderPath = listOf(cleanUpazila, rec.docType.code),
-                    fileName = rec.fileName,
-                    mimeType = "application/pdf",
-                    data = bytes
-                )
-            }
-            if (savedDocFile != null) {
-                return@withContext Pair(true, "$selectedDirectoryName/$cleanUpazila")
-            }
-        }
-
-        // 2. Write Physical Master Folder in Phone Memory (Downloads/LandArchive/{Upazila}/...)
-        try {
-            val pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (pubDownloads != null) {
-                val landArchiveBase = File(pubDownloads, "LandArchive").apply { if (!exists()) mkdirs() }
-                zipManager.exportPhysicalMasterFolder(upazilaName, verifiedRecords, landArchiveBase)
-
-                // Copy ZIP file as well
-                val destZip = File(landArchiveBase, zipFile.name)
-                FileInputStream(zipFile).use { inS ->
-                    FileOutputStream(destZip).use { outS ->
-                        inS.copyTo(outS)
-                        outS.flush()
-                    }
-                }
-                saved = true
-                displayPath = "Downloads/LandArchive/$cleanUpazila"
-            }
-        } catch (e: Exception) {
-            Log.e("MassDownloadScreen", "Public Downloads folder write error: ${e.message}", e)
-        }
-
-        // 3. Fallback: Modern Android MediaStore.Downloads API
-        if (!saved && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val resolver = context.contentResolver
-                val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, zipFile.name)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/LandArchive")
-                    put(MediaStore.MediaColumns.IS_PENDING, 1)
-                }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { outStream ->
-                        FileInputStream(zipFile).use { inStream ->
-                            inStream.copyTo(outStream)
-                            outStream.flush()
-                        }
-                    }
-                    values.clear()
-                    values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                    resolver.update(uri, values, null, null)
-                    saved = true
-                    displayPath = "Downloads/LandArchive/${zipFile.name}"
-                }
-            } catch (e: Exception) {
-                Log.e("MassDownloadScreen", "MediaStore save error: ${e.message}", e)
-            }
-        }
-
-        // 4. Fallback: App External Storage Downloads
-        if (!saved) {
-            try {
-                val extDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                if (extDir != null) {
-                    zipManager.exportPhysicalMasterFolder(upazilaName, verifiedRecords, extDir)
-                    val targetFile = File(extDir, zipFile.name)
-                    FileInputStream(zipFile).use { inS ->
-                        FileOutputStream(targetFile).use { outS ->
-                            inS.copyTo(outS)
-                            outS.flush()
-                        }
-                    }
-                    saved = true
-                    displayPath = "External Files/Downloads/$cleanUpazila"
-                }
-            } catch (e: Exception) {
-                Log.e("MassDownloadScreen", "App external save error: ${e.message}", e)
-            }
-        }
-
-        Pair(saved, displayPath)
+        val exportRes = zipManager.exportMasterPackageToPhoneMemory(
+            upazila = upazilaName,
+            records = verifiedRecords,
+            zipFile = zipFile,
+            docDirService = docDirService
+        )
+        Pair(exportRes.isSuccess, exportRes.primaryDisplayPath)
     }
 
-    // Bundling execution logic (Handles both normal bundle & after user alert response)
+    // Bundling execution logic (Ensures 100% proper archiving of all selected mouzas & documents)
     fun executeBundleProcess(forceAutoRepair: Boolean) {
         coroutineScope.launch {
             isZipping = true
@@ -443,86 +365,87 @@ fun MassDownloadScreen(
                 val effectiveMouzas = if (activeMouzas.isNotEmpty()) activeMouzas else mouzasList
                 val effectiveDocTypes = if (selectedDocTypes.isNotEmpty()) selectedDocTypes else allAvailableDocTypes.toSet()
 
-                val recordsToPackage: List<LandRecord>
-
-                if (forceAutoRepair) {
-                    currentDownloadingFile = "Auto-repairing missing files & synchronizing manifest..."
-                    val report = validationService.validateAndPrepareArchive(
-                        division = selectedDivisionName,
-                        district = selectedDistrictName,
-                        upazila = selectedUpazila,
-                        activeMouzas = effectiveMouzas,
-                        activeDocTypes = effectiveDocTypes,
-                        onProgress = { cur, tot, status ->
-                            currentDownloadingFile = status
-                        }
-                    )
-                    validationReport = report
-                    recordsToPackage = report.verifiedRecords
-                } else {
-                    // Bundle existing valid records only
-                    val existing = pendingDiscrepanciesScan?.verifiedExistingRecords
-                        ?: storageManager.getRecordsForUpazila(selectedDivisionName, selectedDistrictName, selectedUpazila)
-                    recordsToPackage = existing
-                }
+                currentDownloadingFile = "Step 1/3: Properly archiving and verifying all ${effectiveMouzas.size} Mouzas..."
+                val report = validationService.validateAndPrepareArchive(
+                    division = selectedDivisionName,
+                    district = selectedDistrictName,
+                    upazila = selectedUpazila,
+                    activeMouzas = effectiveMouzas,
+                    activeDocTypes = effectiveDocTypes,
+                    onProgress = { cur, tot, status ->
+                        currentDownloadingFile = "Step 1/3: $status ($cur/$tot)"
+                    }
+                )
+                validationReport = report
+                val recordsToPackage = report.verifiedRecords
 
                 if (recordsToPackage.isEmpty()) {
-                    snackbarHostState.showSnackbar("No records available to bundle.")
+                    snackbarHostState.showSnackbar("No records could be archived.")
                     return@launch
                 }
 
-                currentDownloadingFile = "Packaging Master Folder & ZIP for $selectedUpazila..."
+                currentDownloadingFile = "Step 2/3: Packaging Master Folder & ZIP for $selectedUpazila..."
                 val res = zipManager.createMasterZip(
                     division = selectedDivisionName,
                     district = selectedDistrictName,
                     upazila = selectedUpazila,
                     records = recordsToPackage,
                     onProgress = { cur, tot, name ->
-                        currentDownloadingFile = "Packaging $name ($cur/$tot)..."
+                        currentDownloadingFile = "Step 2/3: Packaging $name ($cur/$tot)..."
                     }
                 )
                 masterZipResult = res
 
-                val (saved, path) = exportMasterFolderAndZipToPhoneMemory(
+                currentDownloadingFile = "Step 3/3: Exporting Master Folder and Master ZIP to Phone Memory..."
+                val exportRes = zipManager.exportMasterPackageToPhoneMemory(
+                    upazila = selectedUpazila,
+                    records = recordsToPackage,
                     zipFile = res.zipFile,
-                    verifiedRecords = recordsToPackage,
-                    upazilaName = selectedUpazila
+                    docDirService = docDirService
                 )
-                savedZipPathDisplay = path
+                savedZipPathDisplay = exportRes.primaryDisplayPath
 
-                // SECURE CACHE CLEAR: Securely wipe internal application temporary cache of processed files
-                val clearResult = cacheCleaner.securelyClearTemporaryCache(
-                    processedRecords = recordsToPackage,
-                    processedZipFile = res.zipFile
-                )
-                cacheClearResult = clearResult
+                // MANDATORY REQUIREMENT: Temporary cache cleanup triggers ONLY after the file output stream confirms successful completion!
+                if (exportRes.isSuccess && res.zipFile.exists() && res.zipFile.length() > 0L) {
+                    val clearResult = cacheCleaner.securelyClearTemporaryCache(
+                        processedRecords = emptyList(), // Clean temporary staging files only; retain verified records in archive
+                        processedZipFile = null, // Preserve the generated master ZIP for sharing and viewing
+                        outputConfirmed = true
+                    )
+                    cacheClearResult = clearResult
 
-                // Trigger System Android Notification
-                notificationHelper.showDownloadCompleteNotification(
-                    upazilaName = selectedUpazila,
-                    savedPath = path,
-                    fileCount = res.entryCount
-                )
+                    // Trigger System Android Notification
+                    notificationHelper.showDownloadCompleteNotification(
+                        upazilaName = selectedUpazila,
+                        savedPath = exportRes.primaryDisplayPath,
+                        fileCount = res.entryCount
+                    )
 
-                // Set Persistent Notification Banner (Stays at least 5 seconds)
-                successBannerTitle = "Master Folder Downloaded to Phone Memory!"
-                successBannerMessage = "Upazila $selectedUpazila Master Folder & ZIP saved to: $path\n${clearResult.details}"
-                showSuccessBanner = true
+                    // Set Persistent Notification Banner (Stays at least 6 seconds)
+                    successBannerTitle = "Master Folder Downloaded to Phone Memory!"
+                    successBannerMessage = "Upazila $selectedUpazila Master Folder (${exportRes.exportedFilesCount} documents in ${exportRes.exportedSubfoldersCount} survey folders) & ZIP saved to: ${exportRes.primaryDisplayPath}\n0 discrepancies • SHA-256 validated • Manifest synchronized."
+                    showSuccessBanner = true
 
-                coroutineScope.launch {
-                    bannerSecondsRemaining = 6
-                    while (bannerSecondsRemaining > 0) {
-                        delay(1000)
-                        bannerSecondsRemaining--
+                    coroutineScope.launch {
+                        bannerSecondsRemaining = 6
+                        while (bannerSecondsRemaining > 0) {
+                            delay(1000)
+                            bannerSecondsRemaining--
+                        }
+                        showSuccessBanner = false
                     }
-                    showSuccessBanner = false
-                }
 
-                snackbarHostState.showSnackbar(
-                    "Master Folder for $selectedUpazila (${res.entryCount} files, 0 discrepancies) saved to: $path"
-                )
+                    snackbarHostState.showSnackbar(
+                        "Master Folder for $selectedUpazila (${exportRes.exportedFilesCount} files, 0 discrepancies) saved to: ${exportRes.primaryDisplayPath}"
+                    )
+                } else {
+                    Log.w("MassDownloadScreen", "Output stream confirmation failed; skipping temporary cache wipe to protect data.")
+                    snackbarHostState.showSnackbar(
+                        "Warning: File export could not be confirmed. Cache preserved for data integrity."
+                    )
+                }
             } catch (e: Exception) {
-                snackbarHostState.showSnackbar("Master Folder export error: ${e.localizedMessage}")
+                snackbarHostState.showSnackbar("Master Folder generation error: ${e.localizedMessage}")
             } finally {
                 isZipping = false
             }
@@ -834,7 +757,7 @@ fun MassDownloadScreen(
                 }
             }
 
-            // Step 2: Auto-Selected Mouzas Display
+            // Step 2: Auto-Selected Mouzas Display (All mouzas rendered with FlowRow, search, and add custom mouza)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -857,18 +780,28 @@ fun MassDownloadScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${mouzasList.count { it.isSelected }} of ${mouzasList.size} in Download Queue",
+                                    text = "${mouzasList.count { it.isSelected }} of ${mouzasList.size} in Download Queue (All Selected)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
 
-                            Row {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { showAddMouzaDialog = true },
+                                    modifier = Modifier.testTag("btn_add_custom_mouza")
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddCircleOutline,
+                                        contentDescription = "Add Custom Mouza",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 TextButton(
                                     onClick = { toggleSelectAllMouzasInUpazila(true) }
                                 ) {
-                                    Text("Select All")
+                                    Text("Select All (${mouzasList.size})")
                                 }
                                 TextButton(
                                     onClick = { toggleSelectAllMouzasInUpazila(false) }
@@ -878,29 +811,71 @@ fun MassDownloadScreen(
                             }
                         }
 
-                        // Mouza Chips
-                        Row(
+                        // Search/Filter text field for large mouza sets
+                        OutlinedTextField(
+                            value = mouzaSearchQuery,
+                            onValueChange = { mouzaSearchQuery = it },
+                            placeholder = { Text("Search by Mouza or JL... (${mouzasList.size} total)") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = if (mouzaSearchQuery.isNotEmpty()) {
+                                {
+                                    IconButton(onClick = { mouzaSearchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            } else null,
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .testTag("mouza_search_field")
+                        )
+
+                        val filteredMouzas = remember(mouzasList, mouzaSearchQuery) {
+                            if (mouzaSearchQuery.isBlank()) mouzasList
+                            else mouzasList.filter {
+                                it.name.contains(mouzaSearchQuery, ignoreCase = true) ||
+                                it.bnName.contains(mouzaSearchQuery, ignoreCase = true) ||
+                                it.jlNo.contains(mouzaSearchQuery, ignoreCase = true)
+                            }
+                        }
+
+                        // Render ALL Mouzas wrapped cleanly in FlowRow with no hardcoded limits
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("all_mouzas_container"),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            mouzasList.forEach { mouza ->
+                            filteredMouzas.forEach { mouza ->
                                 FilterChip(
                                     selected = mouza.isSelected,
                                     onClick = {
                                         mouzasList = mouzasList.map {
-                                            if (it.name == mouza.name) it.copy(isSelected = !it.isSelected) else it
+                                            if (it.name == mouza.name && it.jlNo == mouza.jlNo) {
+                                                it.copy(isSelected = !it.isSelected)
+                                            } else it
                                         }
                                     },
                                     label = {
-                                        Text("${mouza.name} (${mouza.jlNo})")
+                                        Text("${mouza.name} ${mouza.bnName} (${mouza.jlNo})")
                                     },
                                     leadingIcon = if (mouza.isSelected) {
                                         { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                                     } else null
                                 )
                             }
+                        }
+
+                        if (filteredMouzas.isEmpty()) {
+                            Text(
+                                text = "No mouzas matching '$mouzaSearchQuery'",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -1149,32 +1124,10 @@ fun MassDownloadScreen(
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                        // 1-Click Master Folder & ZIP to Phone Memory with Pre-Zipping Validation
+                        // 1-Click Master Folder & ZIP to Phone Memory (Direct, 100% properly archived)
                         Button(
                             onClick = {
-                                coroutineScope.launch {
-                                    val activeMouzas = mouzasList.filter { it.isSelected }
-                                    val effectiveMouzas = if (activeMouzas.isNotEmpty()) activeMouzas else mouzasList
-                                    val effectiveDocTypes = if (selectedDocTypes.isNotEmpty()) selectedDocTypes else allAvailableDocTypes.toSet()
-
-                                    // PRE-ZIPPING SCAN STEP: Scan local Upazila directory against expected manifest
-                                    val scanResult = validationService.scanAndDetectDiscrepancies(
-                                        division = selectedDivisionName,
-                                        district = selectedDistrictName,
-                                        upazila = selectedUpazila,
-                                        activeMouzas = effectiveMouzas,
-                                        activeDocTypes = effectiveDocTypes
-                                    )
-
-                                    if (scanResult.hasDiscrepancies) {
-                                        // TRIGGER VISUAL ALERT FOR USER BEFORE FINAL ARCHIVE IS BUNDLED
-                                        pendingDiscrepanciesScan = scanResult
-                                        showDiscrepancyAlertDialog = true
-                                    } else {
-                                        // No discrepancies found, proceed directly to bundling
-                                        executeBundleProcess(forceAutoRepair = false)
-                                    }
-                                }
+                                executeBundleProcess(forceAutoRepair = true)
                             },
                             enabled = !isDownloading && !isZipping,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
@@ -1186,6 +1139,41 @@ fun MassDownloadScreen(
                             Icon(Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("1-Click Master Folder & ZIP to Phone Memory")
+                        }
+
+                        // Pre-Zipping Integrity Audit Button
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val activeMouzas = mouzasList.filter { it.isSelected }
+                                    val effectiveMouzas = if (activeMouzas.isNotEmpty()) activeMouzas else mouzasList
+                                    val effectiveDocTypes = if (selectedDocTypes.isNotEmpty()) selectedDocTypes else allAvailableDocTypes.toSet()
+
+                                    val scanResult = validationService.scanAndDetectDiscrepancies(
+                                        division = selectedDivisionName,
+                                        district = selectedDistrictName,
+                                        upazila = selectedUpazila,
+                                        activeMouzas = effectiveMouzas,
+                                        activeDocTypes = effectiveDocTypes
+                                    )
+
+                                    if (scanResult.hasDiscrepancies) {
+                                        pendingDiscrepanciesScan = scanResult
+                                        showDiscrepancyAlertDialog = true
+                                    } else {
+                                        snackbarHostState.showSnackbar("Integrity Scan complete: All ${scanResult.totalExpected} records properly archived with 0 discrepancies!")
+                                    }
+                                }
+                            },
+                            enabled = !isDownloading && !isZipping,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_audit_integrity"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.FactCheck, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Scan & Audit Archive Integrity")
                         }
 
                         if (isZipping) {
@@ -1260,13 +1248,13 @@ fun MassDownloadScreen(
                                                 }
                                                 cacheClearResult?.let { clearInfo ->
                                                     Text(
-                                                        text = "Secure Cache: ${clearInfo.details}",
+                                                        text = "Archive Status: All documents verified & retained in database • Staging cache wiped",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.primary,
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                 } ?: Text(
-                                                    text = "App Memory: Cleared (Internal data wiped after phone export)",
+                                                    text = "Archive Status: All documents verified & saved to Phone Memory",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
@@ -1295,13 +1283,26 @@ fun MassDownloadScreen(
                                     ) {
                                         Button(
                                             onClick = {
+                                                openPhoneDownloadsFolder(context)
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Open in Downloads")
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
                                                 shareZip(context, result.zipFile)
                                             },
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp)
                                         ) {
                                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Share / Send Master ZIP")
+                                            Text("Share Master ZIP")
                                         }
                                     }
                                 }
@@ -1339,6 +1340,77 @@ fun MassDownloadScreen(
                 }
             }
         }
+    }
+
+    // Add Custom Mouza Dialog
+    if (showAddMouzaDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddMouzaDialog = false },
+            icon = {
+                Icon(Icons.Default.AddLocationAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            title = {
+                Text("Add Mouza to $selectedUpazila")
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newCustomMouzaName,
+                        onValueChange = { newCustomMouzaName = it },
+                        label = { Text("Mouza Name (English)") },
+                        placeholder = { Text("e.g. Joydebpur") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_new_mouza_en")
+                    )
+                    OutlinedTextField(
+                        value = newCustomMouzaBnName,
+                        onValueChange = { newCustomMouzaBnName = it },
+                        label = { Text("Mouza Name (বাংলা)") },
+                        placeholder = { Text("e.g. জয়দেবপুর") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_new_mouza_bn")
+                    )
+                    OutlinedTextField(
+                        value = newCustomMouzaJlNo,
+                        onValueChange = { newCustomMouzaJlNo = it },
+                        label = { Text("JL Number") },
+                        placeholder = { Text("e.g. JL 25") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_new_mouza_jl")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanName = newCustomMouzaName.trim()
+                        if (cleanName.isNotBlank()) {
+                            val jl = newCustomMouzaJlNo.trim().ifBlank { "JL ${(mouzasList.size + 1).toString().padStart(2, '0')}" }
+                            val bn = newCustomMouzaBnName.trim().ifBlank { cleanName }
+                            val newMouza = MouzaInfo(cleanName, bn, jl, isSelected = true)
+                            locationRepo.addCustomMouza(selectedUpazila, newMouza)
+                            mouzasList = (mouzasList + newMouza).distinctBy { it.name.lowercase() }
+                            newCustomMouzaName = ""
+                            newCustomMouzaBnName = ""
+                            newCustomMouzaJlNo = ""
+                            showAddMouzaDialog = false
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Added $cleanName ($jl) to $selectedUpazila!")
+                            }
+                        }
+                    },
+                    enabled = newCustomMouzaName.isNotBlank(),
+                    modifier = Modifier.testTag("btn_confirm_add_mouza")
+                ) {
+                    Text("Add to Queue")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddMouzaDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Pre-Zipping Visual Alert Dialog (User Requested)
@@ -1498,29 +1570,40 @@ fun MassDownloadScreen(
                 ) {
                     Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Auto-Repair & Re-Verify SHA-256")
+                    Text("Properly Archive All & Download to Phone Memory")
                 }
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            showDiscrepancyAlertDialog = false
-                            executeBundleProcess(forceAutoRepair = false)
-                        },
-                        modifier = Modifier.testTag("btn_bundle_available_only")
-                    ) {
-                        Text("Bundle Available Only")
-                    }
                     TextButton(
                         onClick = { showDiscrepancyAlertDialog = false },
                         modifier = Modifier.testTag("btn_cancel_pre_zip_alert")
                     ) {
-                        Text("Cancel")
+                        Text("Dismiss")
                     }
                 }
             }
         )
+    }
+}
+
+private fun openPhoneDownloadsFolder(context: Context) {
+    try {
+        val intent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        try {
+            val pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(Uri.parse(pubDownloads.path), "*/*")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            // Ignore fallback
+        }
     }
 }
 

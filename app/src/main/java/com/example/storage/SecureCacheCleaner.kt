@@ -25,12 +25,33 @@ class SecureCacheCleaner(
 
     /**
      * Securely clears the internal application temporary cache of the processed files
-     * immediately after a master ZIP is successfully created and saved to phone memory.
+     * ONLY after the file output stream confirms successful completion.
      */
     suspend fun securelyClearTemporaryCache(
         processedRecords: List<LandRecord>,
-        processedZipFile: File? = null
+        processedZipFile: File? = null,
+        outputConfirmed: Boolean = true
     ): CacheClearResult = withContext(Dispatchers.IO) {
+        if (!outputConfirmed) {
+            Log.w(TAG, "Cache cleanup aborted: Output stream was not confirmed successful.")
+            return@withContext CacheClearResult(
+                clearedFilesCount = 0,
+                clearedBytes = 0L,
+                success = false,
+                details = "Temporary cache cleanup aborted: Output stream completion was not confirmed."
+            )
+        }
+
+        if (processedZipFile != null && (!processedZipFile.exists() || processedZipFile.length() <= 0L)) {
+            Log.w(TAG, "Cache cleanup aborted: Target ZIP file is missing or empty.")
+            return@withContext CacheClearResult(
+                clearedFilesCount = 0,
+                clearedBytes = 0L,
+                success = false,
+                details = "Temporary cache cleanup aborted: ZIP output file missing or zero bytes."
+            )
+        }
+
         var filesDeleted = 0
         var bytesFreed = 0L
 
@@ -126,13 +147,12 @@ class SecureCacheCleaner(
 
     private fun cleanEmptyDirectories(dir: File) {
         if (!dir.exists() || !dir.isDirectory) return
-        dir.listFiles()?.forEach { child ->
-            if (child.isDirectory) {
-                cleanEmptyDirectories(child)
+        dir.walkBottomUp()
+            .filter { it.isDirectory && it != dir }
+            .forEach { child ->
                 if (child.listFiles()?.isEmpty() == true) {
                     child.delete()
                 }
             }
-        }
     }
 }

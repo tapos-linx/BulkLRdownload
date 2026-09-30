@@ -146,10 +146,70 @@ fun MasterZipScreen(
 
                     if (upazilaRecords.isEmpty()) {
                         Text(
-                            text = "No records found for $selectedUpazila ($selectedDistrict). Save records via Browser or Import to package them.",
+                            text = "No records currently in internal database for $selectedUpazila ($selectedDistrict).",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isGenerating = true
+                                    zipResult = null
+                                    try {
+                                        val valService = com.example.storage.ArchiveValidationService(
+                                            context,
+                                            storageManager,
+                                            com.example.storage.DocumentDirectoryService(context)
+                                        )
+                                        val mouzas = locationRepo.getMouzasForUpazila(selectedUpazila)
+                                        val report = valService.validateAndPrepareArchive(
+                                            division = selectedDivision,
+                                            district = selectedDistrict,
+                                            upazila = selectedUpazila,
+                                            activeMouzas = mouzas,
+                                            activeDocTypes = DocumentType.entries.toSet(),
+                                            onProgress = { cur, tot, status ->
+                                                progressCount = cur
+                                                totalCount = tot
+                                                currentItemName = status
+                                            }
+                                        )
+                                        val res = zipManager.createMasterZip(
+                                            division = selectedDivision,
+                                            district = selectedDistrict,
+                                            upazila = selectedUpazila,
+                                            records = report.verifiedRecords,
+                                            onProgress = { cur, tot, name ->
+                                                progressCount = cur
+                                                totalCount = tot
+                                                currentItemName = name
+                                            }
+                                        )
+                                        val exportRes = zipManager.exportMasterPackageToPhoneMemory(
+                                            upazila = selectedUpazila,
+                                            records = report.verifiedRecords,
+                                            zipFile = res.zipFile,
+                                            docDirService = com.example.storage.DocumentDirectoryService(context)
+                                        )
+                                        zipResult = res
+                                        snackbarHostState.showSnackbar("Master Folder (${exportRes.exportedFilesCount} files in ${exportRes.exportedSubfoldersCount} subfolders) & ZIP downloaded to ${exportRes.primaryDisplayPath}!")
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Packaging error: ${e.localizedMessage}")
+                                    } finally {
+                                        isGenerating = false
+                                    }
+                                }
+                            },
+                            enabled = !isGenerating,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_auto_archive_and_generate"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Auto-Archive All Mouzas & Download to Phone Memory")
+                        }
                     } else {
                         val totalBytes = upazilaRecords.sumOf { it.fileSize }
                         Text(
@@ -302,6 +362,47 @@ fun MasterZipScreen(
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val docDirService = com.example.storage.DocumentDirectoryService(context)
+                                    val effectiveRecords = if (upazilaRecords.isNotEmpty()) {
+                                        upazilaRecords
+                                    } else {
+                                        val valService = com.example.storage.ArchiveValidationService(
+                                            context,
+                                            storageManager,
+                                            docDirService
+                                        )
+                                        val mouzas = locationRepo.getMouzasForUpazila(selectedUpazila)
+                                        val rep = valService.validateAndPrepareArchive(
+                                            division = selectedDivision,
+                                            district = selectedDistrict,
+                                            upazila = selectedUpazila,
+                                            activeMouzas = mouzas,
+                                            activeDocTypes = DocumentType.entries.toSet()
+                                        )
+                                        rep.verifiedRecords
+                                    }
+                                    val exportRes = zipManager.exportMasterPackageToPhoneMemory(
+                                        upazila = selectedUpazila,
+                                        records = effectiveRecords,
+                                        zipFile = result.zipFile,
+                                        docDirService = docDirService
+                                    )
+                                    snackbarHostState.showSnackbar("Saved Master Folder (${exportRes.exportedFilesCount} documents in ${exportRes.exportedSubfoldersCount} subfolders) & ZIP to ${exportRes.primaryDisplayPath}!")
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_download_master_to_phone_memory"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download Master Folder & ZIP to Phone Memory")
+                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

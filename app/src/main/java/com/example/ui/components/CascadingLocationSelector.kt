@@ -43,6 +43,11 @@ fun CascadingLocationSelector(
     var divisionExpanded by remember { mutableStateOf(false) }
     var districtExpanded by remember { mutableStateOf(false) }
     var upazilaExpanded by remember { mutableStateOf(false) }
+    var mouzaExpanded by remember { mutableStateOf(false) }
+
+    val mouzasForUpazila = remember(selectedUpazila) {
+        locationRepo.getMouzasForUpazila(selectedUpazila)
+    }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -185,18 +190,51 @@ fun CascadingLocationSelector(
                 }
             }
 
-            // Mouza text field
-            OutlinedTextField(
-                value = mouza,
-                onValueChange = onMouzaChanged,
-                label = { Text(stringResource(R.string.mouza)) },
-                placeholder = { Text("e.g. Mohakhali, JL-12 / মহাখালী") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("mouza_input"),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
+            // Mouza Dropdown & Autocomplete Selector
+            ExposedDropdownMenuBox(
+                expanded = mouzaExpanded,
+                onExpandedChange = { mouzaExpanded = !mouzaExpanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = mouza,
+                    onValueChange = {
+                        onMouzaChanged(it)
+                        mouzaExpanded = true
+                    },
+                    label = { Text("${stringResource(R.string.mouza)} (${mouzasForUpazila.size} available)") },
+                    placeholder = { Text("Select from list or type... / মৌজা নির্বাচন") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = mouzaExpanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                        .testTag("mouza_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                if (mouzasForUpazila.isNotEmpty()) {
+                    ExposedDropdownMenu(
+                        expanded = mouzaExpanded,
+                        onDismissRequest = { mouzaExpanded = false }
+                    ) {
+                        val filtered = if (mouza.isBlank()) mouzasForUpazila
+                        else mouzasForUpazila.filter {
+                            it.name.contains(mouza, ignoreCase = true) ||
+                            it.bnName.contains(mouza, ignoreCase = true) ||
+                            it.jlNo.contains(mouza, ignoreCase = true)
+                        }
+                        filtered.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text("${m.name} (${m.bnName}) - ${m.jlNo}") },
+                                onClick = {
+                                    onMouzaChanged("${m.name} (${m.bnName})")
+                                    mouzaExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
