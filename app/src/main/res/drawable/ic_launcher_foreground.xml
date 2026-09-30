@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="0"
+        android:translateY="0">
+        <!-- Archive Folder Backing -->
+        <path
+            android:fillColor="#E0F2F1"
+            android:pathData="M32,30 L48,30 L54,36 L76,36 C78.2,36 80,37.8 80,40 L80,74 C80,76.2 78.2,78 76,78 L32,78 C29.8,78 28,76.2 28,74 L28,34 C28,31.8 29.8,30 32,30 Z" />
+        
+        <!-- Deed Document Sheet -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M34,36 L74,36 C75.1,36 76,36.9 76,38 L76,74 C76,75.1 75.1,76 74,76 L34,76 C32.9,76 32,75.1 32,74 L32,38 C32,36.9 32.9,36 34,36 Z" />
+        
+        <!-- Folder Front Lip -->
+        <path
+            android:fillColor="#80CBC4"
+            android:pathData="M28,48 L80,48 L80,74 C80,76.2 78.2,78 76,78 L32,78 C29.8,78 28,76.2 28,74 Z" />
+
+        <!-- Deed Text Lines -->
+        <path
+            android:fillColor="#004D40"
+            android:pathData="M38,42 L70,42 A1.5,1.5 0 0 1 70,45 L38,45 A1.5,1.5 0 0 1 38,42 Z" />
+        <path
+            android:fillColor="#004D40"
+            android:pathData="M38,54 L62,54 A1.5,1.5 0 0 1 62,57 L38,57 A1.5,1.5 0 0 1 38,54 Z" />
+        <path
+            android:fillColor="#004D40"
+            android:pathData="M38,62 L56,62 A1.5,1.5 0 0 1 56,65 L38,65 A1.5,1.5 0 0 1 38,62 Z" />
+
+        <!-- Cadastral Golden Stamp / Land Seal -->
+        <path
+            android:fillColor="#FFD54F"
+            android:pathData="M66,62 C66,58.7 68.7,56 72,56 C75.3,56 78,58.7 78,62 C78,65.3 75.3,68 72,68 C68.7,68 66,65.3 66,62 Z" />
+        <path
+            android:fillColor="#FFA000"
+            android:pathData="M69,66 L67,74 L71,72 L73,74 L72,67 Z" />
+        <path
+            android:fillColor="#FFA000"
+            android:pathData="M73,66 L75,74 L72,72 L70,74 L71,67 Z" />
+        <!-- Cadastral plot square mark inside seal -->
+        <path
+            android:fillColor="#004D40"
+            android:pathData="M70,60 L74,60 L74,64 L70,64 Z" />
+    </group>
+</vector>

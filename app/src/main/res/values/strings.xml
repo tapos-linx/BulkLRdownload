@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">LRmassDownload</string>
+    <string name="tab_mass">Mass Download</string>
+    <string name="tab_capture">Browser / Capture</string>
+    <string name="tab_records">Saved Records</string>
+    <string name="tab_import">Import</string>
+    <string name="tab_master">Master ZIP</string>
+    <string name="tab_about">About &amp; Help</string>
+    
+    <string name="division">Division</string>
+    <string name="district">District</string>
+    <string name="upazila">Upazila</string>
+    <string name="mouza">Mouza (Name or JL No.)</string>
+    <string name="doc_type">Document Type</string>
+    <string name="khatian_no">Khatian / Plot No.</string>
+    
+    <string name="url_hint">Enter portal URL or portal search</string>
+    <string name="go">Go</string>
+    <string name="downloading">Capturing file…</string>
+    <string name="saved_to">Saved to: %1$s</string>
+    <string name="duplicate_skipped">File already exists (SHA-256 match). Skipped.</string>
+    
+    <string name="import_title">Import Local Records (ZIP or Folder)</string>
+    <string name="import_instructions">Pick a legitimately obtained ZIP file or folder. You can review and verify guessed document types before saving.</string>
+    <string name="btn_pick_zip">Select ZIP File</string>
+    <string name="btn_pick_folder">Select Folder</string>
+    <string name="btn_confirm_import">Save All to Archive</string>
+    
+    <string name="master_zip_title">Generate Master ZIP</string>
+    <string name="master_zip_desc">Streams and packages all saved records for the currently selected Upazila into a structured ZIP file with a manifest.tsv.</string>
+    <string name="btn_generate_master_zip">Create Master ZIP for Upazila</string>
+    <string name="zip_created">Master ZIP saved to: %1$s</string>
+    
+    <string name="about_title">About LandArchive BD</string>
+    <string name="about_disclaimer">IMPORTANT DISCLAIMER:\n\nLandArchive BD is an UNOFFICIAL, independent utility application. It is NOT affiliated with, authorized by, or associated with the Directorate General of Land Records and Surveys (DLRS), Ministry of Land, Aspire to Innovate (a2i), or any government body of the People’s Republic of Bangladesh.\n\nAll land records, khatians, and mouza maps must be officially certified and verified at the local Upazila Land Office (AC Land) or District Record Room. This tool does not perform automatic crawling, does not automate or bypass CAPTCHAs, does not host records, and stores only files downloaded or imported directly by the user on local device storage.</string>
+</resources>
