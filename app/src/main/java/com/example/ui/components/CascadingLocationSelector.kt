@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
@@ -32,7 +34,8 @@ fun CascadingLocationSelector(
     onDistrictSelected: (String) -> Unit,
     onUpazilaSelected: (String) -> Unit,
     onMouzaChanged: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMouzasLoaded: ((List<com.example.data.MouzaInfo>) -> Unit)? = null
 ) {
     val divisions = remember { locationRepo.getDivisions() }
     val districts = remember(selectedDivision) { locationRepo.getDistricts(selectedDivision) }
@@ -45,8 +48,30 @@ fun CascadingLocationSelector(
     var upazilaExpanded by remember { mutableStateOf(false) }
     var mouzaExpanded by remember { mutableStateOf(false) }
 
-    val mouzasForUpazila = remember(selectedUpazila) {
-        locationRepo.getMouzasForUpazila(selectedUpazila)
+    // Fully query without truncation or hardcoded limits directly from dataset
+    val mouzasForUpazila = remember(selectedDivision, selectedDistrict, selectedUpazila) {
+        if (selectedUpazila.isNotBlank()) {
+            locationRepo.getMouzasForUpazila(selectedUpazila, selectedDistrict, selectedDivision)
+        } else {
+            emptyList()
+        }
+    }
+
+    // Automatically notify loaded mouzas whenever list changes
+    LaunchedEffect(mouzasForUpazila) {
+        onMouzasLoaded?.invoke(mouzasForUpazila)
+    }
+
+    // Automatically select all mouzas when upazila is selected or changed
+    LaunchedEffect(selectedUpazila, selectedDistrict) {
+        if (selectedUpazila.isNotBlank()) {
+            val allMouzas = locationRepo.getMouzasForUpazila(selectedUpazila, selectedDistrict, selectedDivision)
+            if (allMouzas.isNotEmpty()) {
+                val allMouzasLabel = "All Mouzas (${allMouzas.size} Mouzas)"
+                onMouzaChanged(allMouzasLabel)
+                onMouzasLoaded?.invoke(allMouzas)
+            }
+        }
     }
 
     Card(
@@ -113,6 +138,19 @@ fun CascadingLocationSelector(
                                 onClick = {
                                     onDivisionSelected(div.name)
                                     divisionExpanded = false
+                                    val newDistricts = locationRepo.getDistricts(div.name)
+                                    val firstDist = newDistricts.firstOrNull()?.name ?: ""
+                                    if (firstDist.isNotBlank()) {
+                                        onDistrictSelected(firstDist)
+                                        val newUpzs = locationRepo.getUpazilas(div.name, firstDist)
+                                        val firstUpz = newUpzs.firstOrNull() ?: ""
+                                        if (firstUpz.isNotBlank()) {
+                                            onUpazilaSelected(firstUpz)
+                                            val newMouzas = locationRepo.getMouzasForUpazila(firstUpz, firstDist, div.name)
+                                            onMouzaChanged("All Mouzas (${newMouzas.size} Mouzas)")
+                                            onMouzasLoaded?.invoke(newMouzas)
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -148,6 +186,14 @@ fun CascadingLocationSelector(
                                 onClick = {
                                     onDistrictSelected(dist.name)
                                     districtExpanded = false
+                                    val newUpazilas = locationRepo.getUpazilas(selectedDivision, dist.name)
+                                    val firstUpz = newUpazilas.firstOrNull() ?: ""
+                                    if (firstUpz.isNotBlank()) {
+                                        onUpazilaSelected(firstUpz)
+                                        val newMouzas = locationRepo.getMouzasForUpazila(firstUpz, dist.name, selectedDivision)
+                                        onMouzaChanged("All Mouzas (${newMouzas.size} Mouzas)")
+                                        onMouzasLoaded?.invoke(newMouzas)
+                                    }
                                 }
                             )
                         }
@@ -184,8 +230,46 @@ fun CascadingLocationSelector(
                             onClick = {
                                 onUpazilaSelected(upz)
                                 upazilaExpanded = false
+                                val newMouzas = locationRepo.getMouzasForUpazila(upz, selectedDistrict, selectedDivision)
+                                onMouzaChanged("All Mouzas (${newMouzas.size} Mouzas)")
+                                onMouzasLoaded?.invoke(newMouzas)
                             }
                         )
+                    }
+                }
+            }
+
+            // Mouza Quick Selection Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Mouza Selection (${mouzasForUpazila.size} in $selectedUpazila)",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            val allMouzas = locationRepo.getMouzasForUpazila(selectedUpazila, selectedDistrict, selectedDivision)
+                            onMouzaChanged("All Mouzas (${allMouzas.size} Mouzas)")
+                            onMouzasLoaded?.invoke(allMouzas)
+                        },
+                        modifier = Modifier.testTag("btn_select_all_mouzas_selector")
+                    ) {
+                        Icon(Icons.Default.DoneAll, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Select All (${mouzasForUpazila.size})", style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (mouza.isNotBlank()) {
+                        TextButton(
+                            onClick = { onMouzaChanged("") }
+                        ) {
+                            Text("Clear", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }
@@ -217,12 +301,47 @@ fun CascadingLocationSelector(
                         expanded = mouzaExpanded,
                         onDismissRequest = { mouzaExpanded = false }
                     ) {
-                        val filtered = if (mouza.isBlank()) mouzasForUpazila
+                        // Option 1: Select All Mouzas automatically
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.DoneAll,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "★ All Mouzas / সকল মৌজা (${mouzasForUpazila.size} Mouzas)",
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Automatically select all ${mouzasForUpazila.size} mouzas in $selectedUpazila",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onMouzaChanged("All Mouzas (${mouzasForUpazila.size} Mouzas)")
+                                onMouzasLoaded?.invoke(mouzasForUpazila)
+                                mouzaExpanded = false
+                            },
+                            modifier = Modifier.testTag("item_select_all_mouzas")
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        val isAllSelected = mouza.isBlank() || mouza.startsWith("All Mouzas", ignoreCase = true)
+                        val filtered = if (isAllSelected) mouzasForUpazila
                         else mouzasForUpazila.filter {
                             it.name.contains(mouza, ignoreCase = true) ||
                             it.bnName.contains(mouza, ignoreCase = true) ||
                             it.jlNo.contains(mouza, ignoreCase = true)
                         }
+
                         filtered.forEach { m ->
                             DropdownMenuItem(
                                 text = { Text("${m.name} (${m.bnName}) - ${m.jlNo}") },

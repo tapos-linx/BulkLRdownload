@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,7 +27,12 @@ import androidx.core.content.FileProvider
 import com.example.R
 import com.example.data.DocumentType
 import com.example.data.LandRecord
+import com.example.data.LocationRepository
 import com.example.storage.StorageManager
+import com.example.storage.download.DownloadStatus
+import com.example.storage.download.LandRecordDownloadService
+import com.example.ui.components.DownloadLandRecordDialog
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,18 +42,37 @@ import java.util.Locale
 @Composable
 fun RecordsScreen(
     storageManager: StorageManager,
+    locationRepo: LocationRepository? = null,
     onNavigateToCapture: () -> Unit,
     onNavigateToImport: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val repo = locationRepo ?: remember { LocationRepository(context) }
+    val downloadService = remember { LandRecordDownloadService.getInstance(context) }
+
     var records by remember { mutableStateOf(storageManager.getAllRecords()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilterType by remember { mutableStateOf<DocumentType?>(null) }
     var recordToDelete by remember { mutableStateOf<LandRecord?>(null) }
+    var showDownloadDialog by remember { mutableStateOf(false) }
+
+    // Observe active background downloads
+    val allDownloads by downloadService.observeAllDownloads().collectAsState(initial = emptyList())
+    val activeDownloads = remember(allDownloads) {
+        allDownloads.filter { it.status == DownloadStatus.RUNNING || it.status == DownloadStatus.ENQUEUED }
+    }
 
     fun refreshRecords() {
         records = storageManager.getAllRecords()
+    }
+
+    // Auto refresh when a download succeeds
+    LaunchedEffect(allDownloads) {
+        if (allDownloads.any { it.status == DownloadStatus.SUCCEEDED }) {
+            refreshRecords()
+        }
     }
 
     val filteredRecords = remember(records, searchQuery, selectedFilterType) {
@@ -67,12 +92,87 @@ fun RecordsScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { showDownloadDialog = true },
+                icon = { Icon(Icons.Default.CloudDownload, contentDescription = null) },
+                text = { Text("Download Record") },
+                modifier = Modifier.testTag("fab_download_record")
+            )
+        },
         topBar = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
+                // Active Download Status Banner
+                if (activeDownloads.isNotEmpty()) {
+                    val current = activeDownloads.first()
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .clickable { showDownloadDialog = true }
+                            .testTag("active_download_banner"),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Sync,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "Downloading (${current.progressPercentage}%): ${current.fileName}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                Text(
+                                    text = "View",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (current.progressPercentage >= 0) {
+                                LinearProgressIndicator(
+                                    progress = { current.progressPercentage / 100f },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Header & Stats
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -92,8 +192,13 @@ fun RecordsScreen(
                         )
                     }
 
-                    IconButton(onClick = { refreshRecords() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    Row {
+                        IconButton(onClick = { showDownloadDialog = true }) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = "Download Record")
+                        }
+                        IconButton(onClick = { refreshRecords() }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
                     }
                 }
 
@@ -238,6 +343,23 @@ fun RecordsScreen(
             dismissButton = {
                 TextButton(onClick = { recordToDelete = null }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Remote Land Record Download Dialog (OkHttp & WorkManager)
+    if (showDownloadDialog) {
+        DownloadLandRecordDialog(
+            locationRepo = repo,
+            downloadService = downloadService,
+            onDismiss = {
+                showDownloadDialog = false
+                refreshRecords()
+            },
+            onDownloadStarted = {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Background download started with WorkManager!")
                 }
             }
         )

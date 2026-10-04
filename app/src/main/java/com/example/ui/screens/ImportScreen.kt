@@ -23,11 +23,9 @@ import com.example.R
 import com.example.data.DocumentType
 import com.example.data.LocationRepository
 import com.example.storage.ImportCandidate
-import com.example.storage.SaveResult
 import com.example.storage.StorageManager
 import com.example.storage.ZipManager
 import com.example.ui.components.CascadingLocationSelector
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,37 +42,35 @@ fun ImportScreen(
     onUpazilaSelected: (String) -> Unit,
     onMouzaChanged: (String) -> Unit,
     onImportComplete: () -> Unit,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    viewModel: ImportViewModel = remember { ImportViewModel(storageManager, zipManager) }
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    var candidates by remember { mutableStateOf<List<ImportCandidate>>(emptyList()) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var importProgress by remember { mutableFloatStateOf(0f) }
-    var currentFileProcessing by remember { mutableStateOf("") }
+    val candidates by viewModel.candidates.collectAsState()
+    val categorizedFolders by viewModel.categorizedFolders.collectAsState()
+    val isProcessing by viewModel.isProcessing.collectAsState()
+    val importProgress by viewModel.importProgress.collectAsState()
+    val currentFileProcessing by viewModel.currentFileProcessing.collectAsState()
+    val isFolderView by viewModel.isFolderView.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
+
+    LaunchedEffect(statusMessage) {
+        statusMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearStatusMessage()
+        }
+    }
 
     val zipPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                isProcessing = true
-                currentFileProcessing = "Analyzing ZIP archive..."
-                try {
-                    val parsed = zipManager.parseZipForImport(
-                        zipUri = uri,
-                        defaultDivision = defaultDivision,
-                        defaultDistrict = defaultDistrict,
-                        defaultUpazila = defaultUpazila,
-                        defaultMouza = defaultMouza
-                    )
-                    candidates = parsed
-                    snackbarHostState.showSnackbar("Found ${parsed.size} documents in ZIP")
-                } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("Error parsing ZIP: ${e.localizedMessage}")
-                } finally {
-                    isProcessing = false
-                }
-            }
+            viewModel.parseZipForImport(
+                zipUri = uri,
+                defaultDivision = defaultDivision,
+                defaultDistrict = defaultDistrict,
+                defaultUpazila = defaultUpazila,
+                defaultMouza = defaultMouza
+            )
         }
     }
 
@@ -82,25 +78,13 @@ fun ImportScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                isProcessing = true
-                currentFileProcessing = "Scanning folder..."
-                try {
-                    val parsed = zipManager.parseFolderForImport(
-                        folderUri = uri,
-                        defaultDivision = defaultDivision,
-                        defaultDistrict = defaultDistrict,
-                        defaultUpazila = defaultUpazila,
-                        defaultMouza = defaultMouza
-                    )
-                    candidates = parsed
-                    snackbarHostState.showSnackbar("Found ${parsed.size} documents in folder")
-                } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("Error scanning folder: ${e.localizedMessage}")
-                } finally {
-                    isProcessing = false
-                }
-            }
+            viewModel.parseFolderForImport(
+                folderUri = uri,
+                defaultDivision = defaultDivision,
+                defaultDistrict = defaultDistrict,
+                defaultUpazila = defaultUpazila,
+                defaultMouza = defaultMouza
+            )
         }
     }
 
@@ -118,7 +102,7 @@ fun ImportScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = stringResource(R.string.import_instructions),
+                    text = "Pick an archive or folder. Records are automatically categorized into offline folders by District and Mouza.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -177,7 +161,7 @@ fun ImportScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Ready to organize into LandArchive",
+                                text = "${categorizedFolders.size} District & ${categorizedFolders.sumOf { it.mouzaFolders.size }} Mouza folders",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -185,47 +169,19 @@ fun ImportScreen(
 
                         Button(
                             onClick = {
-                                coroutineScope.launch {
-                                    isProcessing = true
-                                    var importedCount = 0
-                                    var dupCount = 0
-                                    val toImport = candidates.filter { it.isSelected }
-                                    val total = toImport.size
-
-                                    toImport.forEachIndexed { idx, candidate ->
-                                        currentFileProcessing = "Saving ${candidate.fileName}..."
-                                        importProgress = (idx + 1).toFloat() / total.coerceAtLeast(1)
-
-                                        val res = storageManager.saveDocument(
-                                            division = candidate.division,
-                                            district = candidate.district,
-                                            upazila = candidate.upazila,
-                                            mouza = candidate.mouza,
-                                            docType = candidate.docType,
-                                            khatianOrPlotNo = candidate.khatianOrPlotNo,
-                                            rawFileName = candidate.fileName,
-                                            data = candidate.data
-                                        )
-                                        when (res) {
-                                            is SaveResult.Success -> importedCount++
-                                            is SaveResult.Duplicate -> dupCount++
-                                            is SaveResult.Error -> {}
-                                        }
+                                viewModel.saveAllSelected { saved, _ ->
+                                    if (saved > 0) {
+                                        onImportComplete()
                                     }
-
-                                    isProcessing = false
-                                    candidates = emptyList()
-                                    onImportComplete()
-                                    snackbarHostState.showSnackbar("Import complete: $importedCount saved, $dupCount duplicates skipped.")
                                 }
                             },
                             enabled = selectedCount > 0 && !isProcessing,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.testTag("confirm_import_button")
                         ) {
-                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.FolderSpecial, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save All ($selectedCount)")
+                            Text("Save & Organize ($selectedCount)")
                         }
                     }
                 }
@@ -287,7 +243,7 @@ fun ImportScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Choose an external ZIP archive or a folder of PDFs/images on your phone storage to inspect, categorize, and archive them.",
+                        text = "Choose an external ZIP archive or a folder on your phone storage to inspect, categorize into District & Mouza folders, and organize into your offline archive.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -324,44 +280,322 @@ fun ImportScreen(
                                 mouza = defaultMouza,
                                 onDivisionSelected = { div ->
                                     onDivisionSelected(div)
-                                    candidates = candidates.map { it.copy(division = div) }
+                                    viewModel.applyDefaultLocationToAll(div, defaultDistrict, defaultUpazila, defaultMouza)
                                 },
                                 onDistrictSelected = { dist ->
                                     onDistrictSelected(dist)
-                                    candidates = candidates.map { it.copy(district = dist) }
+                                    viewModel.applyDefaultLocationToAll(defaultDivision, dist, defaultUpazila, defaultMouza)
                                 },
                                 onUpazilaSelected = { upz ->
                                     onUpazilaSelected(upz)
-                                    candidates = candidates.map { it.copy(upazila = upz) }
+                                    val allMouzas = locationRepo.getMouzasForUpazila(upz)
+                                    val allLabel = "All Mouzas (${allMouzas.size} Mouzas)"
+                                    onMouzaChanged(allLabel)
+                                    viewModel.applyDefaultLocationToAll(defaultDivision, defaultDistrict, upz, allLabel)
                                 },
                                 onMouzaChanged = { mz ->
                                     onMouzaChanged(mz)
-                                    candidates = candidates.map { it.copy(mouza = mz) }
+                                    viewModel.applyDefaultLocationToAll(defaultDivision, defaultDistrict, defaultUpazila, mz)
                                 }
                             )
                         }
                     }
                 }
 
-                items(candidates, key = { it.id }) { candidate ->
-                    ImportCandidateCard(
-                        candidate = candidate,
-                        onToggleSelect = { isChecked ->
-                            candidates = candidates.map {
-                                if (it.id == candidate.id) it.copy(isSelected = isChecked) else it
-                            }
-                        },
-                        onDocTypeChange = { newType ->
-                            candidates = candidates.map {
-                                if (it.id == candidate.id) it.copy(docType = newType) else it
-                            }
-                        },
-                        onKhatianChange = { newKhatian ->
-                            candidates = candidates.map {
-                                if (it.id == candidate.id) it.copy(khatianOrPlotNo = newKhatian) else it
-                            }
+                // View Mode Switcher Header
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = isFolderView,
+                                onClick = { viewModel.setFolderView(true) },
+                                label = { Text("Folder View (${categorizedFolders.size} Districts)") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderSpecial,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.testTag("tab_folder_view")
+                            )
+
+                            FilterChip(
+                                selected = !isFolderView,
+                                onClick = { viewModel.setFolderView(false) },
+                                label = { Text("Flat List (${candidates.size})") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.FormatListBulleted,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                modifier = Modifier.testTag("tab_list_view")
+                            )
                         }
+                    }
+                }
+
+                if (isFolderView) {
+                    // Categorized View: District Folders containing Mouza Folders
+                    items(categorizedFolders, key = { it.districtName }) { districtFolder ->
+                        DistrictFolderCard(
+                            districtFolder = districtFolder,
+                            onToggleDistrictExpanded = { viewModel.toggleDistrictExpanded(districtFolder.districtName) },
+                            onToggleDistrictSelection = { isChecked ->
+                                viewModel.toggleFolderSelection(districtFolder.districtName, null, isChecked)
+                            },
+                            onToggleMouzaExpanded = { mouzaName ->
+                                viewModel.toggleMouzaExpanded(districtFolder.districtName, mouzaName)
+                            },
+                            onToggleMouzaSelection = { mouzaName, isChecked ->
+                                viewModel.toggleFolderSelection(districtFolder.districtName, mouzaName, isChecked)
+                            },
+                            onToggleCandidateSelect = { candidateId, isChecked ->
+                                viewModel.toggleCandidateSelection(candidateId, isChecked)
+                            },
+                            onCandidateDocTypeChange = { candidateId, newType ->
+                                viewModel.updateCandidateDocType(candidateId, newType)
+                            },
+                            onCandidateKhatianChange = { candidateId, newKhatian ->
+                                viewModel.updateCandidateKhatian(candidateId, newKhatian)
+                            }
+                        )
+                    }
+                } else {
+                    // Flat List View
+                    items(candidates, key = { it.id }) { candidate ->
+                        ImportCandidateCard(
+                            candidate = candidate,
+                            onToggleSelect = { isChecked ->
+                                viewModel.toggleCandidateSelection(candidate.id, isChecked)
+                            },
+                            onDocTypeChange = { newType ->
+                                viewModel.updateCandidateDocType(candidate.id, newType)
+                            },
+                            onKhatianChange = { newKhatian ->
+                                viewModel.updateCandidateKhatian(candidate.id, newKhatian)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Card representing a District folder containing Mouza subfolders.
+ */
+@Composable
+fun DistrictFolderCard(
+    districtFolder: DistrictFolder,
+    onToggleDistrictExpanded: () -> Unit,
+    onToggleDistrictSelection: (Boolean) -> Unit,
+    onToggleMouzaExpanded: (String) -> Unit,
+    onToggleMouzaSelection: (String, Boolean) -> Unit,
+    onToggleCandidateSelect: (String, Boolean) -> Unit,
+    onCandidateDocTypeChange: (String, DocumentType) -> Unit,
+    onCandidateKhatianChange: (String, String) -> Unit
+) {
+    val allSelectedInDistrict = districtFolder.mouzaFolders.all { m -> m.records.all { it.isSelected } }
+    val anySelectedInDistrict = districtFolder.mouzaFolders.any { m -> m.records.any { it.isSelected } }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("district_folder_${districtFolder.districtName}"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // District Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Checkbox(
+                        checked = allSelectedInDistrict,
+                        onCheckedChange = { onToggleDistrictSelection(it) },
+                        modifier = Modifier.testTag("checkbox_district_${districtFolder.districtName}")
                     )
+
+                    Icon(
+                        imageVector = if (districtFolder.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    Column {
+                        Text(
+                            text = "District: ${districtFolder.districtName}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${districtFolder.totalRecordsCount} records in ${districtFolder.mouzaFolders.size} Mouza folders • ${districtFolder.totalSizeBytes / 1024} KB",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = onToggleDistrictExpanded,
+                    modifier = Modifier.testTag("expand_district_${districtFolder.districtName}")
+                ) {
+                    Icon(
+                        imageVector = if (districtFolder.isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (districtFolder.isExpanded) "Collapse" else "Expand"
+                    )
+                }
+            }
+
+            // Mouza Subfolders
+            if (districtFolder.isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    districtFolder.mouzaFolders.forEach { mouzaFolder ->
+                        MouzaFolderCard(
+                            mouzaFolder = mouzaFolder,
+                            onToggleMouzaExpanded = { onToggleMouzaExpanded(mouzaFolder.mouzaName) },
+                            onToggleMouzaSelection = { isChecked ->
+                                onToggleMouzaSelection(mouzaFolder.mouzaName, isChecked)
+                            },
+                            onToggleCandidateSelect = onToggleCandidateSelect,
+                            onCandidateDocTypeChange = onCandidateDocTypeChange,
+                            onCandidateKhatianChange = onCandidateKhatianChange
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Card representing a Mouza folder containing individual land records.
+ */
+@Composable
+fun MouzaFolderCard(
+    mouzaFolder: MouzaFolder,
+    onToggleMouzaExpanded: () -> Unit,
+    onToggleMouzaSelection: (Boolean) -> Unit,
+    onToggleCandidateSelect: (String, Boolean) -> Unit,
+    onCandidateDocTypeChange: (String, DocumentType) -> Unit,
+    onCandidateKhatianChange: (String, String) -> Unit
+) {
+    val allSelectedInMouza = mouzaFolder.records.all { it.isSelected }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("mouza_folder_${mouzaFolder.mouzaName}"),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        tonalElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Mouza Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Checkbox(
+                        checked = allSelectedInMouza,
+                        onCheckedChange = onToggleMouzaSelection,
+                        modifier = Modifier.testTag("checkbox_mouza_${mouzaFolder.mouzaName}")
+                    )
+
+                    Icon(
+                        imageVector = if (mouzaFolder.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Column {
+                        Text(
+                            text = "Mouza: ${mouzaFolder.mouzaName}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "${mouzaFolder.records.size} files • ${mouzaFolder.totalSizeBytes / 1024} KB",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = onToggleMouzaExpanded,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (mouzaFolder.isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (mouzaFolder.isExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            // Documents in this Mouza
+            if (mouzaFolder.isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    mouzaFolder.records.forEach { candidate ->
+                        ImportCandidateCard(
+                            candidate = candidate,
+                            onToggleSelect = { isChecked ->
+                                onToggleCandidateSelect(candidate.id, isChecked)
+                            },
+                            onDocTypeChange = { newType ->
+                                onCandidateDocTypeChange(candidate.id, newType)
+                            },
+                            onKhatianChange = { newKhatian ->
+                                onCandidateKhatianChange(candidate.id, newKhatian)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -423,6 +657,36 @@ fun ImportCandidateCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                // Show current District & Mouza mapping badge
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "District: ${candidate.district.ifBlank { "Unassigned" }}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "Mouza: ${candidate.mouza.ifBlank { "Unassigned" }}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 if (candidate.isDuplicate) {

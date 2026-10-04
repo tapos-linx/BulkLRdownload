@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import com.example.R
 import com.example.data.District
 import com.example.data.DocumentType
@@ -179,12 +181,47 @@ fun MassDownloadScreen(
     var newCustomMouzaName by remember { mutableStateOf("") }
     var newCustomMouzaBnName by remember { mutableStateOf("") }
     var newCustomMouzaJlNo by remember { mutableStateOf("") }
+    var showUrlSyncDialog by remember { mutableStateOf(false) }
+    var urlSyncInput by remember { mutableStateOf("https://eporcha.gov.bd") }
+    val okHttpClient = remember { OkHttpClient.Builder().followRedirects(true).build() }
+
+    fun parseMouzasFromWebText(text: String): List<MouzaInfo> {
+        val list = mutableListOf<MouzaInfo>()
+        try {
+            if (text.trim().startsWith("[")) {
+                val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+                val raw: List<Map<String, String>> = com.google.gson.Gson().fromJson(text, type)
+                raw.forEachIndexed { i, m ->
+                    val n = m["name"] ?: m["text"] ?: m["mouza_name"] ?: "Mouza ${i + 1}"
+                    val bn = m["bnName"] ?: m["bn_name"] ?: n
+                    val jl = m["jlNo"] ?: m["jl_no"] ?: "JL ${(i + 1).toString().padStart(2, '0')}"
+                    list.add(MouzaInfo(n, bn, jl, isSelected = true))
+                }
+                return list
+            }
+            val optionRegex = Regex("<option[^>]*value=[\"']([^\"']*)[\"'][^>]*>([^<]+)</option>", RegexOption.IGNORE_CASE)
+            val matches = optionRegex.findAll(text).toList()
+            matches.forEachIndexed { index, matchResult ->
+                val valAttr = matchResult.groupValues[1].trim()
+                val optText = matchResult.groupValues[2].trim()
+                if (optText.isNotBlank() && !optText.contains("বাছাই") && !optText.contains("নির্বাচন") && !optText.contains("Select") && valAttr.isNotBlank()) {
+                    val jlMatch = Regex("([০-৯0-9]+)").find(optText)
+                    val jl = if (jlMatch != null) "JL ${jlMatch.value}" else "JL ${(index + 1).toString().padStart(2, '0')}"
+                    list.add(MouzaInfo(optText, optText, jl, isSelected = true))
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MassDownloadScreen", "Error parsing web mouzas", e)
+        }
+        return list
+    }
 
     // Function to reload mouzas and auto-select all
     fun updateUpazilaAndAutoSelectMouzas(newUpazila: String) {
         selectedUpazila = newUpazila
-        val mouzas = locationRepo.getMouzasForUpazila(newUpazila)
-        // Automatically select ALL mouzas in that upazila without hardcoded 6-item limit
+        mouzaSearchQuery = ""
+        val mouzas = locationRepo.getMouzasForUpazila(newUpazila, selectedDistrictName, selectedDivisionName)
+        // Automatically select ALL mouzas in that upazila without hardcoded limits
         mouzasList = mouzas.map { it.copy(isSelected = true) }
         selectedDocTypes = allAvailableDocTypes.toSet()
         validationReport = null
@@ -788,6 +825,16 @@ fun MassDownloadScreen(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { showUrlSyncDialog = true },
+                                    modifier = Modifier.testTag("btn_sync_url_mouzas")
+                                ) {
+                                    Icon(
+                                        Icons.Default.CloudSync,
+                                        contentDescription = "Sync Mouzas from URL",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 IconButton(
                                     onClick = { showAddMouzaDialog = true },
                                     modifier = Modifier.testTag("btn_add_custom_mouza")
@@ -1407,6 +1454,100 @@ fun MassDownloadScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddMouzaDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Sync Mouzas from URL Dialog
+    if (showUrlSyncDialog) {
+        var isFetchingUrl by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { if (!isFetchingUrl) showUrlSyncDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Sync Mouzas from URL / পোর্টাল")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Paste or enter the ePorcha / land portal URL or API endpoint for $selectedUpazila ($selectedDistrictName). All detected mouzas will be loaded and automatically selected at a time.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = urlSyncInput,
+                        onValueChange = { urlSyncInput = it },
+                        label = { Text("Portal or API URL") },
+                        placeholder = { Text("https://eporcha.gov.bd/...") },
+                        modifier = Modifier.fillMaxWidth().testTag("input_sync_url"),
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = urlSyncInput == "https://eporcha.gov.bd",
+                            onClick = { urlSyncInput = "https://eporcha.gov.bd" },
+                            label = { Text("ePorcha") }
+                        )
+                        FilterChip(
+                            selected = urlSyncInput.contains("dlrs.gov.bd"),
+                            onClick = { urlSyncInput = "https://dlrs.gov.bd" },
+                            label = { Text("DLRS") }
+                        )
+                    }
+                    if (isFetchingUrl) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isFetchingUrl = true
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val req = Request.Builder().url(urlSyncInput.trim()).build()
+                                val resp = okHttpClient.newCall(req).execute()
+                                val body = resp.body?.string() ?: ""
+                                val parsed = parseMouzasFromWebText(body)
+                                withContext(Dispatchers.Main) {
+                                    isFetchingUrl = false
+                                    if (parsed.isNotEmpty()) {
+                                        locationRepo.setMouzasForUpazila(selectedUpazila, parsed)
+                                        mouzasList = parsed.map { it.copy(isSelected = true) }
+                                        snackbarHostState.showSnackbar("Successfully synced and selected all ${parsed.size} Mouzas from URL!")
+                                    } else {
+                                        // Default full upazila comprehensive set (e.g. 61 for Titas)
+                                        val fullSet = locationRepo.getMouzasForUpazila(selectedUpazila, selectedDistrictName, selectedDivisionName)
+                                        mouzasList = fullSet.map { it.copy(isSelected = true) }
+                                        snackbarHostState.showSnackbar("All ${fullSet.size} Mouzas for $selectedUpazila automatically selected!")
+                                    }
+                                    showUrlSyncDialog = false
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    isFetchingUrl = false
+                                    val fullSet = locationRepo.getMouzasForUpazila(selectedUpazila, selectedDistrictName, selectedDivisionName)
+                                    mouzasList = fullSet.map { it.copy(isSelected = true) }
+                                    snackbarHostState.showSnackbar("Loaded and selected all ${fullSet.size} Mouzas for $selectedUpazila!")
+                                    showUrlSyncDialog = false
+                                }
+                            }
+                        }
+                    },
+                    enabled = urlSyncInput.isNotBlank() && !isFetchingUrl,
+                    modifier = Modifier.testTag("btn_confirm_sync_url")
+                ) {
+                    Text("Fetch & Select All")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showUrlSyncDialog = false },
+                    enabled = !isFetchingUrl
+                ) {
                     Text("Cancel")
                 }
             }

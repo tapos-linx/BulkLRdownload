@@ -134,6 +134,82 @@ class StorageManager(private val context: Context) {
         }
     }
 
+    /**
+     * Registers a large file already downloaded by OkHttp/WorkManager into the archive directory
+     * and records manifest without loading the entire contents into memory.
+     */
+    @Synchronized
+    fun registerDownloadedFile(
+        downloadedFile: File,
+        division: String,
+        district: String,
+        upazila: String,
+        mouza: String,
+        docType: DocumentType,
+        khatianOrPlotNo: String,
+        rawFileName: String,
+        sha256Hash: String? = null,
+        sourceUrl: String = ""
+    ): SaveResult {
+        return try {
+            val sha256 = sha256Hash ?: calculateSha256(downloadedFile)
+            val currentRecords = getAllRecords().toMutableList()
+
+            // Deduplication check
+            val existing = currentRecords.firstOrNull { it.sha256.equals(sha256, ignoreCase = true) }
+            if (existing != null) {
+                val existingFile = File(existing.filePath)
+                if (existingFile.exists() && existingFile.length() > 0) {
+                    if (downloadedFile.absolutePath != existingFile.absolutePath) {
+                        downloadedFile.delete()
+                    }
+                    return SaveResult.Duplicate(existing)
+                }
+            }
+
+            // Create hierarchical directory
+            val targetDir = File(
+                baseArchiveDir,
+                "${sanitize(division)}/${sanitize(district)}/${sanitize(upazila)}/${docType.code}"
+            ).apply { if (!exists()) mkdirs() }
+
+            val cleanName = sanitizeFileName(rawFileName)
+            val finalFile = File(targetDir, cleanName)
+
+            if (downloadedFile.absolutePath != finalFile.absolutePath) {
+                if (finalFile.exists()) finalFile.delete()
+                if (!downloadedFile.renameTo(finalFile)) {
+                    downloadedFile.copyTo(finalFile, overwrite = true)
+                    downloadedFile.delete()
+                }
+            }
+
+            val record = LandRecord(
+                id = UUID.randomUUID().toString(),
+                fileName = cleanName,
+                filePath = finalFile.absolutePath,
+                fileSize = finalFile.length(),
+                sha256 = sha256,
+                division = division,
+                district = district,
+                upazila = upazila,
+                mouza = mouza.ifBlank { "Unspecified" },
+                docType = docType,
+                khatianOrPlotNo = khatianOrPlotNo,
+                timestamp = System.currentTimeMillis(),
+                sourceUrl = sourceUrl
+            )
+
+            currentRecords.removeAll { it.sha256.equals(sha256, ignoreCase = true) }
+            currentRecords.add(0, record)
+            saveAllRecords(currentRecords)
+            SaveResult.Success(record)
+        } catch (e: Exception) {
+            Log.e("StorageManager", "Error registering downloaded file", e)
+            SaveResult.Error(e.localizedMessage ?: "Unknown storage error")
+        }
+    }
+
     @Synchronized
     fun saveStream(
         division: String,

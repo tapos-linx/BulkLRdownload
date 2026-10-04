@@ -37,7 +37,8 @@ fun ArchiveMainScreen() {
     var selectedDivision by remember { mutableStateOf("Dhaka") }
     var selectedDistrict by remember { mutableStateOf("Dhaka") }
     var selectedUpazila by remember { mutableStateOf("Savar") }
-    var mouza by remember { mutableStateOf("") }
+    val initialMouzas = remember { locationRepo.getMouzasForUpazila("Savar") }
+    var mouza by remember { mutableStateOf("All Mouzas (${initialMouzas.size} Mouzas)") }
 
     Scaffold(
         bottomBar = {
@@ -81,13 +82,23 @@ fun ArchiveMainScreen() {
                             val districts = locationRepo.getDistricts(div)
                             val firstDist = districts.firstOrNull()?.name ?: ""
                             selectedDistrict = firstDist
-                            selectedUpazila = locationRepo.getUpazilas(div, firstDist).firstOrNull() ?: ""
+                            val firstUpz = locationRepo.getUpazilas(div, firstDist).firstOrNull() ?: ""
+                            selectedUpazila = firstUpz
+                            val newMouzas = locationRepo.getMouzasForUpazila(firstUpz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
                         },
                         onDistrictSelected = { dist ->
                             selectedDistrict = dist
-                            selectedUpazila = locationRepo.getUpazilas(selectedDivision, dist).firstOrNull() ?: ""
+                            val firstUpz = locationRepo.getUpazilas(selectedDivision, dist).firstOrNull() ?: ""
+                            selectedUpazila = firstUpz
+                            val newMouzas = locationRepo.getMouzasForUpazila(firstUpz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
                         },
-                        onUpazilaSelected = { upz -> selectedUpazila = upz },
+                        onUpazilaSelected = { upz ->
+                            selectedUpazila = upz
+                            val newMouzas = locationRepo.getMouzasForUpazila(upz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
+                        },
                         onMouzaChanged = { mz -> mouza = mz },
                         onRecordSaved = { /* Trigger refresh */ },
                         snackbarHostState = snackbarHostState
@@ -96,6 +107,7 @@ fun ArchiveMainScreen() {
                 ArchiveTab.RECORDS -> {
                     RecordsScreen(
                         storageManager = storageManager,
+                        locationRepo = locationRepo,
                         onNavigateToCapture = { currentTab = ArchiveTab.CAPTURE },
                         onNavigateToImport = { currentTab = ArchiveTab.IMPORT },
                         snackbarHostState = snackbarHostState
@@ -115,13 +127,23 @@ fun ArchiveMainScreen() {
                             val districts = locationRepo.getDistricts(div)
                             val firstDist = districts.firstOrNull()?.name ?: ""
                             selectedDistrict = firstDist
-                            selectedUpazila = locationRepo.getUpazilas(div, firstDist).firstOrNull() ?: ""
+                            val firstUpz = locationRepo.getUpazilas(div, firstDist).firstOrNull() ?: ""
+                            selectedUpazila = firstUpz
+                            val newMouzas = locationRepo.getMouzasForUpazila(firstUpz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
                         },
                         onDistrictSelected = { dist ->
                             selectedDistrict = dist
-                            selectedUpazila = locationRepo.getUpazilas(selectedDivision, dist).firstOrNull() ?: ""
+                            val firstUpz = locationRepo.getUpazilas(selectedDivision, dist).firstOrNull() ?: ""
+                            selectedUpazila = firstUpz
+                            val newMouzas = locationRepo.getMouzasForUpazila(firstUpz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
                         },
-                        onUpazilaSelected = { upz -> selectedUpazila = upz },
+                        onUpazilaSelected = { upz ->
+                            selectedUpazila = upz
+                            val newMouzas = locationRepo.getMouzasForUpazila(upz)
+                            mouza = "All Mouzas (${newMouzas.size} Mouzas)"
+                        },
                         onMouzaChanged = { mz -> mouza = mz },
                         onImportComplete = { currentTab = ArchiveTab.RECORDS },
                         snackbarHostState = snackbarHostState

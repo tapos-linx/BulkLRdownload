@@ -11,14 +11,15 @@ data class Division(
 data class District(
     @SerializedName("name") val name: String,
     @SerializedName("bnName") val bnName: String,
-    @SerializedName("upazilas") val upazilas: List<String> = emptyList()
+    @SerializedName("upazilas") val upazilas: List<String> = emptyList(),
+    @SerializedName("mouzas") val mouzas: Map<String, List<MouzaInfo>> = emptyMap()
 )
 
 data class MouzaInfo(
-    val name: String,
-    val bnName: String,
-    val jlNo: String,
-    val isSelected: Boolean = true
+    @SerializedName("name") val name: String,
+    @SerializedName("bnName") val bnName: String,
+    @SerializedName("jlNo") val jlNo: String,
+    @SerializedName("isSelected") val isSelected: Boolean = true
 )
 
 enum class DocumentType(
