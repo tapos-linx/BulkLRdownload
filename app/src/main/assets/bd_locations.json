@@ -8987,309 +8987,84 @@
           ],
           "Titas": [
             {
-              "name": "Sahapur",
-              "bnName": "সাহাপুর",
+              "name": "Titas Sadar",
+              "bnName": "Titas সদর",
               "jlNo": "JL 01"
             },
             {
-              "name": "Banigram",
-              "bnName": "বানিগ্রাম",
+              "name": "Titas Uttar",
+              "bnName": "Titas উত্তর",
               "jlNo": "JL 02"
             },
             {
-              "name": "Chhafara",
-              "bnName": "ছাফরা",
+              "name": "Titas Dakshin",
+              "bnName": "Titas দক্ষিণ",
               "jlNo": "JL 03"
             },
             {
-              "name": "Chhafari",
-              "bnName": "ছাফরি",
+              "name": "Titas Purba",
+              "bnName": "Titas পূর্ব",
               "jlNo": "JL 04"
             },
             {
-              "name": "Nalandha",
-              "bnName": "নালন্ধা",
+              "name": "Titas Paschim",
+              "bnName": "Titas পশ্চিম",
               "jlNo": "JL 05"
             },
             {
-              "name": "Sattatatiya",
-              "bnName": "সাত্তাতাইয়া",
+              "name": "Titas Madhyapara",
+              "bnName": "Titas মধ্যপাড়া",
               "jlNo": "JL 06"
             },
             {
-              "name": "Majidpur",
-              "bnName": "মজিদপুর",
+              "name": "Titas Char",
+              "bnName": "Titas চর",
               "jlNo": "JL 07"
             },
             {
-              "name": "Raghunathpur Nayani",
-              "bnName": "রঘুনাথপুর নয়ানি",
+              "name": "Titas Bazar",
+              "bnName": "Titas বাজার",
               "jlNo": "JL 08"
             },
             {
-              "name": "Azimpur",
-              "bnName": "আজিমপুর",
+              "name": "Titas Railgate",
+              "bnName": "Titas রেলগেট",
               "jlNo": "JL 09"
             },
             {
-              "name": "Dakshin Jugal Srimai",
-              "bnName": "দক্ষিণ যুগল শ্রীমাই",
+              "name": "Titas Puratan",
+              "bnName": "Titas পুরাতন",
               "jlNo": "JL 10"
             },
             {
-              "name": "Kachuai",
-              "bnName": "কচুয়াই",
+              "name": "Titas Nutan",
+              "bnName": "Titas নতুন",
               "jlNo": "JL 11"
             },
             {
-              "name": "Kamchator",
-              "bnName": "কামচাতর",
+              "name": "Titas Kandi",
+              "bnName": "Titas কান্দি",
               "jlNo": "JL 12"
             },
             {
-              "name": "Katha",
-              "bnName": "কথা",
+              "name": "Titas Gaon",
+              "bnName": "Titas গাঁও",
               "jlNo": "JL 13"
             },
             {
-              "name": "Lot 75 Srimai",
-              "bnName": "লট ৭৫ শ্রীমাই",
+              "name": "Titas Para",
+              "bnName": "Titas পাড়া",
               "jlNo": "JL 14"
             },
             {
-              "name": "Parigram",
-              "bnName": "পারিগ্রাম",
+              "name": "Titas Dighirpar",
+              "bnName": "Titas দিঘীরপাড়",
               "jlNo": "JL 15"
-            },
-            {
-              "name": "Srimai",
-              "bnName": "শ্রীমাই",
-              "jlNo": "JL 16"
-            },
-            {
-              "name": "Satani",
-              "bnName": "সাতানী",
-              "jlNo": "JL 17"
-            },
-            {
-              "name": "Jagatpur",
-              "bnName": "জগতপুর",
-              "jlNo": "JL 18"
-            },
-            {
-              "name": "Balorampur",
-              "bnName": "বলরামপুর",
-              "jlNo": "JL 19"
-            },
-            {
-              "name": "Karikandi",
-              "bnName": "কড়িকান্দি",
-              "jlNo": "JL 20"
-            },
-            {
-              "name": "Kalakandi",
-              "bnName": "কলাকান্দি",
-              "jlNo": "JL 21"
-            },
-            {
-              "name": "Vitikandi",
-              "bnName": "ভিটিকান্দি",
-              "jlNo": "JL 22"
-            },
-            {
-              "name": "Narayandia",
-              "bnName": "নারান্দিয়া",
-              "jlNo": "JL 23"
-            },
-            {
-              "name": "Zearkandi",
-              "bnName": "জিয়ারকান্দি",
-              "jlNo": "JL 24"
-            },
-            {
-              "name": "Kathalia",
-              "bnName": "কাঠালিয়া",
-              "jlNo": "JL 25"
-            },
-            {
-              "name": "Pakkhisgatali",
-              "bnName": "পক্ষিশগাতালী",
-              "jlNo": "JL 26"
-            },
-            {
-              "name": "Rajdapur",
-              "bnName": "রাজদাপুর",
-              "jlNo": "JL 27"
-            },
-            {
-              "name": "Biramkashi",
-              "bnName": "বিরামকাশি",
-              "jlNo": "JL 28"
-            },
-            {
-              "name": "Darelpi",
-              "bnName": "দড়েল্পী",
-              "jlNo": "JL 29"
-            },
-            {
-              "name": "Kareyakandi",
-              "bnName": "কারেয়াকান্দি",
-              "jlNo": "JL 30"
-            },
-            {
-              "name": "Nohapur",
-              "bnName": "নোহাপুর",
-              "jlNo": "JL 31"
-            },
-            {
-              "name": "Kalaiyakadi",
-              "bnName": "কালাইয়কাদি",
-              "jlNo": "JL 32"
-            },
-            {
-              "name": "Mangalkandi",
-              "bnName": "মঙ্গলকান্দি",
-              "jlNo": "JL 33"
-            },
-            {
-              "name": "Batakandi",
-              "bnName": "বাতাকান্দি",
-              "jlNo": "JL 34"
-            },
-            {
-              "name": "Gazipur",
-              "bnName": "গাজীপুর",
-              "jlNo": "JL 35"
-            },
-            {
-              "name": "Gopalpur",
-              "bnName": "গোপালপুর",
-              "jlNo": "JL 36"
-            },
-            {
-              "name": "Asadpur",
-              "bnName": "আসাদপুর",
-              "jlNo": "JL 37"
-            },
-            {
-              "name": "Chanderchar",
-              "bnName": "চাঁদেরচর",
-              "jlNo": "JL 38"
-            },
-            {
-              "name": "Baherchar",
-              "bnName": "বাহেরচর",
-              "jlNo": "JL 39"
-            },
-            {
-              "name": "Manikandi",
-              "bnName": "মানিকান্দি",
-              "jlNo": "JL 40"
-            },
-            {
-              "name": "Joynagar",
-              "bnName": "জয়নগর",
-              "jlNo": "JL 41"
-            },
-            {
-              "name": "Daulatpur",
-              "bnName": "দৌলতপুর",
-              "jlNo": "JL 42"
-            },
-            {
-              "name": "Mohanpur",
-              "bnName": "মোহনপুর",
-              "jlNo": "JL 43"
-            },
-            {
-              "name": "Alampur",
-              "bnName": "আলমপুর",
-              "jlNo": "JL 44"
-            },
-            {
-              "name": "Char Titas",
-              "bnName": "চর তিতাস",
-              "jlNo": "JL 45"
-            },
-            {
-              "name": "Titas Sadar",
-              "bnName": "তিতাস সদর",
-              "jlNo": "JL 46"
-            },
-            {
-              "name": "Madhabpur",
-              "bnName": "মাধবপুর",
-              "jlNo": "JL 47"
-            },
-            {
-              "name": "Sultanpur",
-              "bnName": "সুলতানপুর",
-              "jlNo": "JL 48"
-            },
-            {
-              "name": "Shampur",
-              "bnName": "শ্যামপুর",
-              "jlNo": "JL 49"
-            },
-            {
-              "name": "Rampur",
-              "bnName": "রামপুর",
-              "jlNo": "JL 50"
-            },
-            {
-              "name": "Mirzapur",
-              "bnName": "মির্জাপুর",
-              "jlNo": "JL 51"
-            },
-            {
-              "name": "Haripur",
-              "bnName": "হরিপুর",
-              "jlNo": "JL 52"
-            },
-            {
-              "name": "Krishnapur",
-              "bnName": "কৃষ্ণপুর",
-              "jlNo": "JL 53"
-            },
-            {
-              "name": "Radhanagar",
-              "bnName": "রাধানগর",
-              "jlNo": "JL 54"
-            },
-            {
-              "name": "Durgapur",
-              "bnName": "দূর্গাপুর",
-              "jlNo": "JL 55"
-            },
-            {
-              "name": "Gobindapur",
-              "bnName": "গোবিন্দপুর",
-              "jlNo": "JL 56"
             },
             {
               "name": "Fatehabad",
               "bnName": "ফতেহাবাদ",
-              "jlNo": "JL 57"
-            },
-            {
-              "name": "Bhabanipur",
-              "bnName": "ভবানীপুর",
-              "jlNo": "JL 58"
-            },
-            {
-              "name": "Kamalpur",
-              "bnName": "কামালপুর",
-              "jlNo": "JL 59"
-            },
-            {
-              "name": "Sonapur",
-              "bnName": "সোনাপুর",
-              "jlNo": "JL 60"
-            },
-            {
-              "name": "Uttar Titas",
-              "bnName": "উত্তর তিতাস",
-              "jlNo": "JL 61"
+              "jlNo": "JL 16"
             }
           ]
         }

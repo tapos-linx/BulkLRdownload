@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.lrmass.downloader',
+  appId: 'com.tapos.bulklrdownload',
   appName: 'LR Mass Downloader',
   webDir: 'dist',
   server: {

@@ -91,83 +91,6 @@ fun WebViewCaptureScreen(
     var capturedSourceUrl by remember { mutableStateOf("") }
 
     var isCapturing by remember { mutableStateOf(false) }
-    var detectedPageMouzas by remember { mutableStateOf<List<com.example.data.MouzaInfo>>(emptyList()) }
-
-    fun applyDetectedMouzas(mouzas: List<com.example.data.MouzaInfo>) {
-        if (mouzas.isEmpty()) return
-        detectedPageMouzas = mouzas
-        locationRepo.setMouzasForUpazila(selectedUpazila, mouzas)
-        onMouzaChanged("All Mouzas (${mouzas.size} Mouzas)")
-        coroutineScope.launch {
-            snackbarHostState.showSnackbar("All ${mouzas.size} Mouzas automatically selected from portal/URL!")
-        }
-    }
-
-    fun extractMouzasFromCurrentPage() {
-        webView?.evaluateJavascript(
-            """
-            (function() {
-                var items = [];
-                var selects = document.querySelectorAll('select');
-                var target = null;
-                for (var i = 0; i < selects.length; i++) {
-                    var s = selects[i];
-                    var idName = (s.id + ' ' + s.name + ' ' + (s.getAttribute('data-field') || '')).toLowerCase();
-                    if (idName.indexOf('mouza') !== -1 || idName.indexOf('mauza') !== -1) {
-                        target = s;
-                        break;
-                    }
-                }
-                if (!target) {
-                    for (var i = 0; i < selects.length; i++) {
-                        if (selects[i].options && selects[i].options.length > 5) {
-                            target = selects[i];
-                            break;
-                        }
-                    }
-                }
-                if (target && target.options) {
-                    for (var j = 0; j < target.options.length; j++) {
-                        var opt = target.options[j];
-                        var t = opt.text.trim();
-                        var v = opt.value.trim();
-                        if (t && v && t.indexOf('বাছাই') === -1 && t.indexOf('নির্বাচন') === -1 && t.indexOf('Select') === -1 && t !== '--') {
-                            var jlMatch = t.match(/([০-৯0-9]+)/);
-                            var jl = jlMatch ? 'JL ' + jlMatch[1] : 'JL ' + (j < 10 ? '0' + j : j);
-                            items.push({ name: t, bnName: t, jlNo: jl });
-                        }
-                    }
-                }
-                return JSON.stringify(items);
-            })();
-            """.trimIndent()
-        ) { result ->
-            if (!result.isNullOrBlank() && result != "null" && result != "[]") {
-                try {
-                    val unescaped = if (result.startsWith("\"") && result.endsWith("\"")) {
-                        com.google.gson.JsonParser.parseString(result).asString
-                    } else result
-                    val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-                    val rawList: List<Map<String, String>> = com.google.gson.Gson().fromJson(unescaped, type)
-                    val mouzas = rawList.mapIndexed { i, m ->
-                        val name = m["name"] ?: "Mouza ${i + 1}"
-                        val bn = m["bnName"] ?: name
-                        val jl = m["jlNo"] ?: "JL ${(i + 1).toString().padStart(2, '0')}"
-                        com.example.data.MouzaInfo(name, bn, jl)
-                    }
-                    if (mouzas.isNotEmpty()) {
-                        applyDetectedMouzas(mouzas)
-                    } else {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("No mouza options found in web page yet. Please select Upazila on portal first.")
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("WebViewCaptureScreen", "Error parsing extracted mouzas", e)
-                }
-            }
-        }
-    }
 
     BackHandler(enabled = canGoBack) {
         webView?.goBack()
@@ -268,17 +191,6 @@ fun WebViewCaptureScreen(
                     ) {
                         Text(stringResource(R.string.go))
                     }
-
-                    IconButton(
-                        onClick = { extractMouzasFromCurrentPage() },
-                        modifier = Modifier.testTag("btn_sync_page_mouzas")
-                    ) {
-                        Icon(
-                            Icons.Default.CloudSync,
-                            contentDescription = "Sync Mouzas from Web Page/URL",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
 
                 if (isLoading) {
@@ -288,52 +200,6 @@ fun WebViewCaptureScreen(
                             .fillMaxWidth()
                             .padding(top = 4.dp),
                     )
-                }
-
-                // Detected Mouzas banner from portal / URL
-                AnimatedVisibility(visible = detectedPageMouzas.isNotEmpty()) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .clickable {
-                                applyDetectedMouzas(detectedPageMouzas)
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Found ${detectedPageMouzas.size} Mouzas on portal! Tap to auto-select all at a time.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            FilledTonalButton(
-                                onClick = { applyDetectedMouzas(detectedPageMouzas) },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Text("Select All (${detectedPageMouzas.size})", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
                 }
             }
         },
@@ -393,31 +259,6 @@ fun WebViewCaptureScreen(
                             allowFileAccess = true
                         }
 
-                        class MouzaJsBridge {
-                            @android.webkit.JavascriptInterface
-                            fun onMouzasDetected(json: String) {
-                                coroutineScope.launch(Dispatchers.Main) {
-                                    try {
-                                        val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-                                        val rawList: List<Map<String, String>> = com.google.gson.Gson().fromJson(json, type)
-                                        val mouzas = rawList.mapIndexed { idx, map ->
-                                            val name = map["name"] ?: "Mouza ${idx + 1}"
-                                            val bn = map["bnName"] ?: name
-                                            val jl = map["jlNo"] ?: "JL ${(idx + 1).toString().padStart(2, '0')}"
-                                            com.example.data.MouzaInfo(name = name, bnName = bn, jlNo = jl)
-                                        }
-                                        if (mouzas.size >= 5) {
-                                            applyDetectedMouzas(mouzas)
-                                        }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("WebViewCaptureScreen", "Error in onMouzasDetected bridge", e)
-                                    }
-                                }
-                            }
-                        }
-
-                        addJavascriptInterface(MouzaJsBridge(), "AndroidMouzaExtractor")
-
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                 super.onPageStarted(view, url, favicon)
@@ -439,57 +280,6 @@ fun WebViewCaptureScreen(
                                 }
                                 canGoBack = view?.canGoBack() ?: false
                                 canGoForward = view?.canGoForward() ?: false
-
-                                // Automatically scan page/URL for Mouza select options
-                                view?.evaluateJavascript(
-                                    """
-                                    (function() {
-                                        function scanAndSend() {
-                                            var items = [];
-                                            var selects = document.querySelectorAll('select');
-                                            var target = null;
-                                            for (var i = 0; i < selects.length; i++) {
-                                                var s = selects[i];
-                                                var idName = (s.id + ' ' + s.name + ' ' + (s.getAttribute('data-field') || '')).toLowerCase();
-                                                if (idName.indexOf('mouza') !== -1 || idName.indexOf('mauza') !== -1) {
-                                                    target = s;
-                                                    break;
-                                                }
-                                            }
-                                            if (!target) {
-                                                for (var i = 0; i < selects.length; i++) {
-                                                    if (selects[i].options && selects[i].options.length > 8) {
-                                                        target = selects[i];
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            if (target && target.options && target.options.length > 5) {
-                                                for (var j = 0; j < target.options.length; j++) {
-                                                    var opt = target.options[j];
-                                                    var t = opt.text.trim();
-                                                    var v = opt.value.trim();
-                                                    if (t && v && t.indexOf('বাছাই') === -1 && t.indexOf('নির্বাচন') === -1 && t.indexOf('Select') === -1 && t !== '--') {
-                                                        var jlMatch = t.match(/([০-৯0-9]+)/);
-                                                        var jl = jlMatch ? 'JL ' + jlMatch[1] : 'JL ' + (j < 10 ? '0' + j : j);
-                                                        items.push({ name: t, bnName: t, jlNo: jl });
-                                                    }
-                                                }
-                                                if (items.length > 0 && window.AndroidMouzaExtractor) {
-                                                    window.AndroidMouzaExtractor.onMouzasDetected(JSON.stringify(items));
-                                                }
-                                            }
-                                        }
-                                        scanAndSend();
-                                        if (window.MutationObserver) {
-                                            var obs = new MutationObserver(function() { scanAndSend(); });
-                                            obs.observe(document.body, { childList: true, subtree: true });
-                                        }
-                                        document.addEventListener('change', function() { setTimeout(scanAndSend, 500); });
-                                    })();
-                                    """.trimIndent(),
-                                    null
-                                )
                             }
                         }
 

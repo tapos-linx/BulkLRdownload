@@ -9,10 +9,6 @@ class LocationRepository(private val context: Context) {
     private val gson = Gson()
     private var cachedDivisions: List<Division>? = null
 
-    fun clearCache() {
-        cachedDivisions = null
-    }
-
     fun getDivisions(): List<Division> {
         cachedDivisions?.let { return it }
         return try {
@@ -99,70 +95,6 @@ class LocationRepository(private val context: Context) {
         list.addAll(mouzas)
     }
 
-    fun getTitasMouzas(): List<MouzaInfo> = listOf(
-        MouzaInfo("Sahapur", "সাহাপুর", "JL 01"),
-        MouzaInfo("Banigram", "বানিগ্রাম", "JL 02"),
-        MouzaInfo("Chhafara", "ছাফরা", "JL 03"),
-        MouzaInfo("Chhafari", "ছাফরি", "JL 04"),
-        MouzaInfo("Nalandha", "নালন্ধা", "JL 05"),
-        MouzaInfo("Sattatatiya", "সাত্তাতাইয়া", "JL 06"),
-        MouzaInfo("Majidpur", "মজিদপুর", "JL 07"),
-        MouzaInfo("Raghunathpur Nayani", "রঘুনাথপুর নয়ানি", "JL 08"),
-        MouzaInfo("Azimpur", "আজিমপুর", "JL 09"),
-        MouzaInfo("Dakshin Jugal Srimai", "দক্ষিণ যুগল শ্রীমাই", "JL 10"),
-        MouzaInfo("Kachuai", "কচুয়াই", "JL 11"),
-        MouzaInfo("Kamchator", "কামচাতর", "JL 12"),
-        MouzaInfo("Katha", "কথা", "JL 13"),
-        MouzaInfo("Lot 75 Srimai", "লট ৭৫ শ্রীমাই", "JL 14"),
-        MouzaInfo("Parigram", "পারিগ্রাম", "JL 15"),
-        MouzaInfo("Srimai", "শ্রীমাই", "JL 16"),
-        MouzaInfo("Satani", "সাতানী", "JL 17"),
-        MouzaInfo("Jagatpur", "জগতপুর", "JL 18"),
-        MouzaInfo("Balorampur", "বলরামপুর", "JL 19"),
-        MouzaInfo("Karikandi", "কড়িকান্দি", "JL 20"),
-        MouzaInfo("Kalakandi", "কলাকান্দি", "JL 21"),
-        MouzaInfo("Vitikandi", "ভিটিকান্দি", "JL 22"),
-        MouzaInfo("Narayandia", "নারান্দিয়া", "JL 23"),
-        MouzaInfo("Zearkandi", "জিয়ারকান্দি", "JL 24"),
-        MouzaInfo("Kathalia", "কাঠালিয়া", "JL 25"),
-        MouzaInfo("Pakkhisgatali", "পক্ষিশগাতালী", "JL 26"),
-        MouzaInfo("Rajdapur", "রাজদাপুর", "JL 27"),
-        MouzaInfo("Biramkashi", "বিরামকাশি", "JL 28"),
-        MouzaInfo("Darelpi", "দড়েল্পী", "JL 29"),
-        MouzaInfo("Kareyakandi", "কারেয়াকান্দি", "JL 30"),
-        MouzaInfo("Nohapur", "নোহাপুর", "JL 31"),
-        MouzaInfo("Kalaiyakadi", "কালাইয়কাদি", "JL 32"),
-        MouzaInfo("Mangalkandi", "মঙ্গলকান্দি", "JL 33"),
-        MouzaInfo("Batakandi", "বাতাকান্দি", "JL 34"),
-        MouzaInfo("Gazipur", "গাজীপুর", "JL 35"),
-        MouzaInfo("Gopalpur", "গোপালপুর", "JL 36"),
-        MouzaInfo("Asadpur", "আসাদপুর", "JL 37"),
-        MouzaInfo("Chanderchar", "চাঁদেরচর", "JL 38"),
-        MouzaInfo("Baherchar", "বাহেরচর", "JL 39"),
-        MouzaInfo("Manikandi", "মানিকান্দি", "JL 40"),
-        MouzaInfo("Joynagar", "জয়নগর", "JL 41"),
-        MouzaInfo("Daulatpur", "দৌলতপুর", "JL 42"),
-        MouzaInfo("Mohanpur", "মোহনপুর", "JL 43"),
-        MouzaInfo("Alampur", "আলমপুর", "JL 44"),
-        MouzaInfo("Char Titas", "চর তিতাস", "JL 45"),
-        MouzaInfo("Titas Sadar", "তিতাস সদর", "JL 46"),
-        MouzaInfo("Madhabpur", "মাধবপুর", "JL 47"),
-        MouzaInfo("Sultanpur", "সুলতানপুর", "JL 48"),
-        MouzaInfo("Shampur", "শ্যামপুর", "JL 49"),
-        MouzaInfo("Rampur", "রামপুর", "JL 50"),
-        MouzaInfo("Mirzapur", "মির্জাপুর", "JL 51"),
-        MouzaInfo("Haripur", "হরিপুর", "JL 52"),
-        MouzaInfo("Krishnapur", "কৃষ্ণপুর", "JL 53"),
-        MouzaInfo("Radhanagar", "রাধানগর", "JL 54"),
-        MouzaInfo("Durgapur", "দূর্গাপুর", "JL 55"),
-        MouzaInfo("Gobindapur", "গোবিন্দপুর", "JL 56"),
-        MouzaInfo("Fatehabad", "ফতেহাবাদ", "JL 57"),
-        MouzaInfo("Bhabanipur", "ভবানীপুর", "JL 58"),
-        MouzaInfo("Kamalpur", "কামালপুর", "JL 59"),
-        MouzaInfo("Sonapur", "সোনাপুর", "JL 60"),
-        MouzaInfo("Uttar Titas", "উত্তর তিতাস", "JL 61")
-    )
-
     fun getMouzasForUpazila(
         upazilaName: String,
         districtName: String = "",
@@ -171,12 +103,6 @@ class LocationRepository(private val context: Context) {
         val clean = upazilaName.trim()
         if (clean.isBlank()) return emptyList()
         val key = clean.lowercase()
-
-        // Explicit guarantee for Titas to return all 61 mouzas
-        if (key == "titas" || key.contains("titas")) {
-            val custom = customMouzasMap[key] ?: emptyList()
-            return (getTitasMouzas() + custom).distinctBy { it.name.lowercase() }
-        }
 
         // 1. Primary Source: Filter directly from the loaded bd_locations.json dataset without truncation
         val divisions = getDivisions()

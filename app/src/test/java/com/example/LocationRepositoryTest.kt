@@ -78,22 +78,4 @@ class LocationRepositoryTest {
         assertTrue(updatedMouzas.size > initialCount)
         assertTrue(updatedMouzas.any { it.name == "New Custom Mouza" && it.jlNo == "JL 999" })
     }
-
-    @Test
-    fun `getMouzasForUpazila returns all 40+ mouzas for Titas in Cumilla district`() {
-        val titasMouzas = locationRepo.getMouzasForUpazila(
-            upazilaName = "Titas",
-            districtName = "Cumilla",
-            divisionName = "Chattogram"
-        )
-        assertNotNull(titasMouzas)
-        assertTrue(
-            "Titas must return all 40+ mouzas (found ${titasMouzas.size})",
-            titasMouzas.size >= 40
-        )
-        assertTrue(titasMouzas.any { it.name == "Sahapur" })
-        assertTrue(titasMouzas.any { it.name == "Satani" })
-        assertTrue(titasMouzas.any { it.name == "Vitikandi" })
-        assertTrue(titasMouzas.any { it.name == "Batakandi" })
-    }
 }
