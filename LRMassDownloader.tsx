@@ -1,571 +1,388 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Download,
-  FolderArchive,
-  Pause,
-  Play,
-  RotateCcw,
-  Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Layers,
-  MapPin,
-  FileText,
-  Search,
-  CheckSquare,
-  Square,
-  ShieldCheck,
-  ChevronDown
-} from 'lucide-react';
-import { GeoDataService } from './geoDataService';
+// LRMassDownloader.tsx
+import React, { useState, useMemo } from 'react';
+import { GEO_DATA } from './geoData';
 import { useDownloadQueue } from './useDownloadQueue';
-import { District, Upazila, Mouza, SurveyType } from './types';
+import { DownloadTask } from './types';
+import { 
+  Building2, 
+  MapPin, 
+  CheckSquare, 
+  Square, 
+  DownloadCloud, 
+  Play, 
+  Pause, 
+  Trash2, 
+  Layers, 
+  CheckCircle2, 
+  Loader2,
+  Search,
+  X
+} from 'lucide-react';
 
-const SURVEY_TYPES: SurveyType[] = ['CS', 'SA', 'RS', 'BRS'];
+export default function LRMassDownloader() {
+  const [selectedDistrictId, setSelectedDistrictId] = useState<string>('cumilla');
+  const [selectedUpazilaId, setSelectedUpazilaId] = useState<string>('');
+  const [selectedMouzaIds, setSelectedMouzaIds] = useState<string[]>([]);
+  const [surveyType, setSurveyType] = useState<string>('RS');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-export const LRMassDownloader: React.FC = () => {
-  // Cascading Selection State
-  const districts = useMemo(() => GeoDataService.getDistricts(), []);
-  const [selectedDistrict, setSelectedDistrict] = useState<District>(districts[0]);
-  
-  const upazilas = useMemo(() => {
-    return GeoDataService.getUpazilasByDistrict(selectedDistrict.id);
-  }, [selectedDistrict]);
+  const { tasks, isProcessing, addTasks, pauseQueue, resumeQueue, clearQueue, stats } = useDownloadQueue();
 
-  const [selectedUpazila, setSelectedUpazila] = useState<Upazila>(upazilas[0]);
+  const currentDistrict = GEO_DATA.find(d => d.id === selectedDistrictId);
+  const currentUpazila = currentDistrict?.upazilas.find(u => u.id === selectedUpazilaId);
+  const mouzas = currentUpazila?.mouzas || [];
 
-  // Mouzas in selected Upazila
-  const upazilaMouzas = useMemo(() => {
-    return GeoDataService.getMouzasByUpazila(selectedUpazila.id);
-  }, [selectedUpazila]);
-
-  // Selected Mouza IDs (Default to 100% auto-selected upon Upazila change)
-  const [selectedMouzaIds, setSelectedMouzaIds] = useState<Set<string>>(new Set());
-
-  // Survey Series Multi-Selection
-  const [selectedSurveys, setSelectedSurveys] = useState<Set<SurveyType>>(
-    new Set(['RS', 'BRS'])
-  );
-
-  // Search & Filter
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Dropdown open states
-  const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
-  const [upazilaDropdownOpen, setUpazilaDropdownOpen] = useState(false);
-
-  // Download Queue Engine
-  const {
-    tasks,
-    stats,
-    isQueueRunning,
-    isPaused,
-    isPackagingZip,
-    zipProgress,
-    enqueueMouzas,
-    pauseQueue,
-    resumeQueue,
-    abortQueue,
-    retryFailedTasks,
-    exportMasterZip
-  } = useDownloadQueue();
-
-  // Cascade Rule: When District changes, auto-select first Upazila
-  const handleDistrictChange = (dist: District) => {
-    setSelectedDistrict(dist);
-    setDistrictDropdownOpen(false);
-    const newUpazilas = GeoDataService.getUpazilasByDistrict(dist.id);
-    if (newUpazilas.length > 0) {
-      setSelectedUpazila(newUpazilas[0]);
-    }
+  // ১. ডিস্ট্রিক্ট পরিবর্তন হলে উপজেলা, মৌজা ও সার্চ রিসেট
+  const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedDistrictId(e.target.value);
+    setSelectedUpazilaId('');
+    setSelectedMouzaIds([]);
+    setSearchQuery('');
   };
 
-  // Crucial Automation: As soon as an Upazila is picked, AUTOMATICALLY SELECT ALL MOUZAS (100%)
-  useEffect(() => {
-    const allIds = new Set(upazilaMouzas.map(m => m.id));
-    setSelectedMouzaIds(allIds);
-  }, [upazilaMouzas]);
+  // ২. উপজেলা সিলেক্ট করলেই সমস্ত মৌজা অটো সিলেক্ট হবে (AUTO-SELECT ALL)
+  const handleUpazilaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const upazilaId = e.target.value;
+    setSelectedUpazilaId(upazilaId);
+    setSearchQuery('');
 
-  // Master Select All / Deselect All Toggle
-  const toggleSelectAll = () => {
-    if (selectedMouzaIds.size === upazilaMouzas.length) {
-      setSelectedMouzaIds(new Set());
+    const targetUpazila = currentDistrict?.upazilas.find(u => u.id === upazilaId);
+    if (targetUpazila && targetUpazila.mouzas.length > 0) {
+      // সমস্ত মৌজা স্বয়ংক্রিয়ভাবে অ্যারেতে পুশ
+      setSelectedMouzaIds(targetUpazila.mouzas.map(m => m.id));
     } else {
-      setSelectedMouzaIds(new Set(upazilaMouzas.map(m => m.id)));
+      setSelectedMouzaIds([]);
     }
   };
 
-  // Individual Mouza Chip Toggle
-  const toggleMouza = (id: string) => {
-    const next = new Set(selectedMouzaIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelectedMouzaIds(next);
-  };
-
-  // Toggle Survey Type
-  const toggleSurvey = (survey: SurveyType) => {
-    const next = new Set(selectedSurveys);
-    if (next.has(survey)) {
-      if (next.size > 1) next.delete(survey);
-    } else {
-      next.add(survey);
-    }
-    setSelectedSurveys(next);
-  };
-
-  // Filtered Mouzas by Search
+  // ৩. সার্চ ফিল্টার অনুযায়ী মৌজা তালিকা
   const filteredMouzas = useMemo(() => {
-    if (!searchQuery.trim()) return upazilaMouzas;
+    if (!searchQuery.trim()) return mouzas;
     const query = searchQuery.toLowerCase().trim();
-    return upazilaMouzas.filter(
+    return mouzas.filter(
       m =>
-        m.nameBn.includes(query) ||
-        (m.nameEn && m.nameEn.toLowerCase().includes(query)) ||
+        m.nameBn.toLowerCase().includes(query) ||
         m.jlNo.toLowerCase().includes(query)
     );
-  }, [upazilaMouzas, searchQuery]);
+  }, [mouzas, searchQuery]);
 
-  // Start Mass Download Queue
-  const handleStartQueue = () => {
-    const chosenMouzas = upazilaMouzas.filter(m => selectedMouzaIds.has(m.id));
-    if (chosenMouzas.length === 0) return;
-
-    enqueueMouzas(
-      chosenMouzas,
-      Array.from(selectedSurveys),
-      selectedDistrict.nameEn,
-      selectedUpazila.nameEn
+  // ইন্ডিভিজুয়াল চেকবক্স টগল
+  const toggleMouza = (mouzaId: string) => {
+    setSelectedMouzaIds(prev =>
+      prev.includes(mouzaId) ? prev.filter(id => id !== mouzaId) : [...prev, mouzaId]
     );
+  };
+
+  // মাস্টার সিলেক্ট অল / ডিসিলেক্ট অল (সার্চ থাকলে সার্চ রেজাল্ট অনুযায়ী কার্যকর)
+  const toggleSelectAllMouzas = () => {
+    const targetSet = searchQuery.trim() ? filteredMouzas : mouzas;
+    const allTargetSelected = targetSet.length > 0 && targetSet.every(m => selectedMouzaIds.includes(m.id));
+
+    if (allTargetSelected) {
+      const targetIds = new Set(targetSet.map(m => m.id));
+      setSelectedMouzaIds(prev => prev.filter(id => !targetIds.has(id)));
+    } else {
+      const newIds = new Set([...selectedMouzaIds, ...targetSet.map(m => m.id)]);
+      setSelectedMouzaIds(Array.from(newIds));
+    }
+  };
+
+  // কিউ-তে টাস্ক পুশ করা
+  const handleQueueDownloads = () => {
+    if (!currentDistrict || !currentUpazila || selectedMouzaIds.length === 0) return;
+
+    const newTasks: DownloadTask[] = selectedMouzaIds.map(mouzaId => {
+      const mouza = mouzas.find(m => m.id === mouzaId)!;
+      return {
+        id: `${surveyType}-${mouza.id}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        mouzaId: mouza.id,
+        mouzaName: mouza.nameBn,
+        jlNo: mouza.jlNo,
+        upazilaName: currentUpazila.nameBn,
+        districtName: currentDistrict.nameBn,
+        recordType: surveyType,
+        status: 'PENDING',
+        progress: 0
+      };
+    });
+
+    addTasks(newTasks);
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-[#f8fafc] font-sans pb-28 select-none">
-      {/* Top Luxury Gold Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-[#0f1422]/95 backdrop-blur-md border-b border-[#2e2617] px-4 py-3.5 shadow-xl shadow-black/40">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#d4af37] to-[#b38914] p-0.5 shadow-md shadow-amber-900/40 flex items-center justify-center">
-              <div className="w-full h-full bg-[#090d16] rounded-[10px] flex items-center justify-center">
-                <FolderArchive className="w-5 h-5 text-[#d4af37]" />
-              </div>
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-[#fef3c7] leading-tight">
-                LR Mass Downloader
-              </h1>
-              <p className="text-[11px] font-semibold text-[#d4af37] tracking-wider uppercase">
-                Offline Land Record Packaging Engine
-              </p>
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-emerald-900 flex items-center gap-2">
+              <Layers className="w-7 h-7 text-emerald-600" />
+              LR Mass Downloader (কুমিল্লা ও ব্রাহ্মণবাড়িয়া)
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              স্বয়ংক্রিয় মৌজা নির্বাচন এবং কনকারেন্ট কিউ ভিত্তিক বাল্ক ল্যান্ড রেকর্ড ডাউনলোডার
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full">
+              সার্ভে: {surveyType}
+            </span>
+            <span className="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-700 rounded-full">
+              অটো-সিলেক্ট সক্রিয়
+            </span>
+          </div>
+        </header>
+
+        {/* Control Card (Dropdowns & Filters) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+          
+          {/* জেলা নির্বাচন */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-emerald-600" /> ১. জেলা নির্বাচন করুন
+            </label>
+            <select
+              value={selectedDistrictId}
+              onChange={handleDistrictChange}
+              className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            >
+              {GEO_DATA.map(d => (
+                <option key={d.id} value={d.id}>{d.nameBn}</option>
+              ))}
+            </select>
           </div>
 
-          <div className="hidden sm:flex items-center space-x-2 bg-[#141b2c] border border-[#2e2617] rounded-xl px-3 py-1.5 text-xs text-[#94a3b8]">
-            <ShieldCheck className="w-4 h-4 text-[#d4af37]" />
-            <span>Concurrency Limit: 2 Threads</span>
+          {/* উপজেলা নির্বাচন */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-emerald-600" /> ২. উপজেলা নির্বাচন করুন
+            </label>
+            <select
+              value={selectedUpazilaId}
+              onChange={handleUpazilaChange}
+              className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            >
+              <option value="">-- উপজেলা বাছাই করুন --</option>
+              {currentDistrict?.upazilas.map(u => (
+                <option key={u.id} value={u.id}>{u.nameBn} ({u.mouzas.length} টি মৌজা)</option>
+              ))}
+            </select>
+          </div>
+
+          {/* সার্ভে টাইপ */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-emerald-600" /> ৩. রেকর্ডের ধরন
+            </label>
+            <select
+              value={surveyType}
+              onChange={e => setSurveyType(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            >
+              <option value="CS">সিএস (CS)</option>
+              <option value="SA">এসএ (SA)</option>
+              <option value="RS">আরএস (RS)</option>
+              <option value="BRS">বিআরএস / বিএস (BRS)</option>
+            </select>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Module 1: Cascading Location Selector */}
-        <section className="bg-[#0f1422] border border-[#2e2617] rounded-3xl p-5 shadow-2xl shadow-black/60 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-[#d4af37]/5 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <MapPin className="w-5 h-5 text-[#d4af37]" />
-              <h2 className="text-sm font-bold uppercase tracking-widest text-[#d4af37]">
-                Target Archive Geography / ভৌগোলিক নির্বাচন
-              </h2>
-            </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#2a200a] text-[#fef08a] border border-[#d4af37]/40">
-              Zero Missing Mouzas
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* District Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setDistrictDropdownOpen(!districtDropdownOpen);
-                  setUpazilaDropdownOpen(false);
-                }}
-                className="w-full h-16 bg-[#141b2c] border border-[#3d321d] hover:border-[#d4af37] rounded-2xl px-4 flex items-center justify-between text-left transition-all duration-200 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50 shadow-md"
-              >
-                <div>
-                  <span className="block text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">
-                    District / জেলা
-                  </span>
-                  <span className="text-base sm:text-lg font-bold text-[#fef3c7]">
-                    {selectedDistrict.nameEn} ({selectedDistrict.nameBn})
-                  </span>
-                </div>
-                <ChevronDown className="w-5 h-5 text-[#d4af37]" />
-              </button>
-
-              {districtDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#141b2c] border border-[#3d321d] rounded-2xl p-2 shadow-2xl z-30 space-y-1">
-                  {districts.map(d => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => handleDistrictChange(d)}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${
-                        selectedDistrict.id === d.id
-                          ? 'bg-[#2a200a] text-[#fef08a] border border-[#d4af37]'
-                          : 'text-[#cbd5e1] hover:bg-[#1a233a]'
-                      }`}
-                    >
-                      <div className="text-base font-bold">{d.nameEn}</div>
-                      <div className="text-xs text-[#94a3b8]">{d.nameBn}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Upazila Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setUpazilaDropdownOpen(!upazilaDropdownOpen);
-                  setDistrictDropdownOpen(false);
-                }}
-                className="w-full h-16 bg-[#141b2c] border border-[#3d321d] hover:border-[#d4af37] rounded-2xl px-4 flex items-center justify-between text-left transition-all duration-200 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50 shadow-md"
-              >
-                <div>
-                  <span className="block text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">
-                    Upazila / উপজেলা ({upazilas.length})
-                  </span>
-                  <span className="text-base sm:text-lg font-bold text-[#fef3c7]">
-                    {selectedUpazila.nameEn} ({selectedUpazila.nameBn})
-                  </span>
-                </div>
-                <ChevronDown className="w-5 h-5 text-[#d4af37]" />
-              </button>
-
-              {upazilaDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#141b2c] border border-[#3d321d] rounded-2xl p-2 shadow-2xl z-30 max-h-64 overflow-y-auto space-y-1">
-                  {upazilas.map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedUpazila(u);
-                        setUpazilaDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 rounded-xl transition font-medium ${
-                        selectedUpazila.id === u.id
-                          ? 'bg-[#2a200a] text-[#fef08a] border border-[#d4af37]'
-                          : 'text-[#cbd5e1] hover:bg-[#1a233a]'
-                      }`}
-                    >
-                      <div className="text-base font-bold">{u.nameEn}</div>
-                      <div className="text-xs text-[#94a3b8]">{u.nameBn}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Survey Type Selector */}
-          <div className="mt-5 pt-4 border-t border-[#261f14]">
-            <div className="flex items-center space-x-2 mb-3">
-              <Layers className="w-4 h-4 text-[#d4af37]" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">
-                Survey Record Series / খতিয়ান টাইপ নির্বাচন
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {SURVEY_TYPES.map(st => {
-                const active = selectedSurveys.has(st);
-                return (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => toggleSurvey(st)}
-                    className={`h-12 rounded-xl font-extrabold text-sm transition-all duration-150 flex items-center justify-center space-x-2 border ${
-                      active
-                        ? 'bg-[#2a200a] text-[#fef08a] border-[#d4af37] shadow-md shadow-amber-900/30'
-                        : 'bg-[#141a29] text-[#94a3b8] border-[#261f14] hover:bg-[#1b2337]'
-                    }`}
-                  >
-                    <span>{st} Survey</span>
-                    {active && <CheckCircle2 className="w-4 h-4 text-[#d4af37]" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Module 2: Mouza Auto-Selection & Interactive Grid */}
-        <section className="bg-[#0f1422] border border-[#2e2617] rounded-3xl p-5 shadow-2xl shadow-black/60 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center space-x-2">
-                <FileText className="w-5 h-5 text-[#d4af37]" />
-                <h3 className="text-base font-bold text-[#fef3c7]">
-                  {selectedUpazila.nameEn} Mouzas / মৌজা সমূহ
-                </h3>
-              </div>
-              <p className="text-xs text-[#d4af37] font-semibold mt-0.5">
-                Selected: {selectedMouzaIds.size} / Total: {upazilaMouzas.length} Mouzas
-                {selectedMouzaIds.size === upazilaMouzas.length && ' (100% Auto-Selected)'}
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={toggleSelectAll}
-                className="h-10 px-3.5 bg-[#141b2c] border border-[#3d321d] hover:border-[#d4af37] text-xs font-bold text-[#fef3c7] rounded-xl flex items-center space-x-1.5 transition active:scale-95"
-              >
-                {selectedMouzaIds.size === upazilaMouzas.length ? (
-                  <>
-                    <CheckSquare className="w-4 h-4 text-[#d4af37]" />
-                    <span>Deselect All</span>
-                  </>
-                ) : (
-                  <>
-                    <Square className="w-4 h-4 text-[#94a3b8]" />
-                    <span>Select All ({upazilaMouzas.length})</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-[#94a3b8] absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search Mouza by Bengali name, English, or JL number..."
-              className="w-full h-11 pl-10 pr-4 bg-[#141b2c] border border-[#2e2617] rounded-xl text-sm text-[#f8fafc] placeholder-[#64748b] focus:outline-none focus:border-[#d4af37]"
-            />
-          </div>
-
-          {/* Mouza Chips Display */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-72 overflow-y-auto p-1">
-            {filteredMouzas.map(m => {
-              const isSelected = selectedMouzaIds.has(m.id);
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleMouza(m.id)}
-                  className={`p-3 rounded-2xl border text-left transition-all duration-150 flex flex-col justify-between active:scale-[0.98] ${
-                    isSelected
-                      ? 'bg-[#2a200a] border-[#d4af37] text-[#fef08a] shadow-md shadow-amber-950/40'
-                      : 'bg-[#141a29] border-[#261f14] text-[#94a3b8] hover:bg-[#1a2135]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between w-full">
-                    <span className="text-sm font-bold truncate leading-snug">
-                      {m.nameBn}
-                    </span>
-                    {isSelected ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#d4af37] shrink-0 ml-1" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border border-[#3d321d] shrink-0 ml-1" />
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-black/20 w-full text-[11px]">
-                    <span className={isSelected ? 'text-[#f59e0b] font-semibold' : 'text-[#64748b]'}>
-                      {m.jlNo}
-                    </span>
-                    <span className="text-[10px] text-[#64748b] truncate max-w-[70px]">
-                      {m.nameEn}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Phone Target Storage Structure Path Preview */}
-          <div className="bg-[#141b2c] border border-[#2e2617] rounded-2xl p-3.5 flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-2 text-[#cbd5e1] overflow-hidden">
-              <FolderArchive className="w-4 h-4 text-[#d4af37] shrink-0" />
-              <span className="font-mono text-[11px] text-[#fbbf24] truncate">
-                /Internal Storage/LR_Records/{selectedDistrict.nameEn}/{selectedUpazila.nameEn}/
-              </span>
-            </div>
-            <span className="text-[10px] text-[#94a3b8] shrink-0 font-medium ml-2">
-              Nested Master Folder
-            </span>
-          </div>
-
-          {/* Action Trigger Button */}
-          <button
-            type="button"
-            onClick={handleStartQueue}
-            disabled={selectedMouzaIds.size === 0}
-            className="w-full h-14 bg-[#d4af37] hover:bg-[#f59e0b] text-[#090d16] font-extrabold text-base sm:text-lg rounded-2xl shadow-xl shadow-amber-900/40 flex items-center justify-center space-x-2 transition duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-5 h-5 text-[#090d16]" />
-            <span>
-              Enqueue {selectedMouzaIds.size * selectedSurveys.size} Records ({selectedMouzaIds.size} Mouzas × {selectedSurveys.size} Surveys)
-            </span>
-          </button>
-        </section>
-
-        {/* Module 3: Concurrency Queue HUD & Phone ZIP Downloader */}
-        {tasks.length > 0 && (
-          <section className="bg-[#0f1422] border border-[#2e2617] rounded-3xl p-5 shadow-2xl shadow-black/60 space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
-            <div className="flex items-center justify-between">
+        {/* মৌজা তালিকা, সার্চ বার ও অটো-সিলেক্ট ভিউ */}
+        {selectedUpazilaId && (
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-[#fef3c7] flex items-center space-x-2">
-                  <span>Download Queue HUD</span>
-                  {isQueueRunning && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  )}
-                </h3>
-                <p className="text-xs text-[#94a3b8]">
-                  Workers: {stats.activeThreads} / 2 Active Threads | Completed: {stats.completed} of {stats.total}
+                <h2 className="text-lg font-bold text-slate-800">
+                  {currentUpazila?.nameBn} উপজেলার মৌজা তালিকা
+                </h2>
+                <p className="text-xs text-slate-500">
+                  উপজেলা সিলেক্ট করায় সমস্ত মৌজা স্বয়ংক্রিয়ভাবে টিকচিহ্নিত হয়েছে। প্রয়োজনে আনচেক বা সার্চ করে ফিল্টার করুন।
                 </p>
               </div>
 
-              {/* Queue Controls */}
-              <div className="flex items-center space-x-2">
-                {isPaused ? (
-                  <button
-                    type="button"
-                    onClick={resumeQueue}
-                    className="p-2.5 bg-[#141b2c] border border-[#3d321d] hover:border-[#d4af37] rounded-xl text-[#d4af37]"
-                    title="Resume Queue"
-                  >
-                    <Play className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={pauseQueue}
-                    className="p-2.5 bg-[#141b2c] border border-[#3d321d] hover:border-[#d4af37] rounded-xl text-[#f59e0b]"
-                    title="Pause Queue"
-                  >
-                    <Pause className="w-4 h-4" />
-                  </button>
-                )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={toggleSelectAllMouzas}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 hover:bg-slate-100 transition"
+                >
+                  {filteredMouzas.length > 0 && filteredMouzas.every(m => selectedMouzaIds.includes(m.id)) ? (
+                    <><CheckSquare className="w-4 h-4 text-emerald-600" /> {searchQuery ? 'ফিল্টারকৃত বাদ দিন' : 'সব বাদ দিন'}</>
+                  ) : (
+                    <><Square className="w-4 h-4" /> {searchQuery ? 'ফিল্টারকৃত সিলেক্ট করুন' : 'সব সিলেক্ট করুন'}</>
+                  )}
+                </button>
 
-                {stats.failed > 0 && (
-                  <button
-                    type="button"
-                    onClick={retryFailedTasks}
-                    className="p-2.5 bg-[#141b2c] border border-[#3d321d] hover:border-amber-500 rounded-xl text-amber-400"
-                    title="Retry Failed Tasks"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                )}
+                <span className="text-xs font-bold px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
+                  সিলেক্টেড: {selectedMouzaIds.length} / {mouzas.length}
+                  {searchQuery && ` (ফলাফল: ${filteredMouzas.length})`}
+                </span>
 
                 <button
-                  type="button"
-                  onClick={abortQueue}
-                  className="p-2.5 bg-[#141b2c] border border-[#3d321d] hover:border-red-500 rounded-xl text-red-400"
-                  title="Abort & Clear Queue"
+                  onClick={handleQueueDownloads}
+                  disabled={selectedMouzaIds.length === 0}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <DownloadCloud className="w-4 h-4" />
+                  ডাউনলোড কিউতে যোগ করুন ({selectedMouzaIds.length})
                 </button>
               </div>
             </div>
 
-            {/* Solid Metallic Gold Progress Bar */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-[#d4af37]">{stats.percent}% Processed</span>
-                <span className="text-[#94a3b8]">
-                  {stats.completed} Done | {stats.pending} Pending | {stats.failed} Failed
-                </span>
+            {/* সার্চ বার (Search Filter) */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <Search className="w-4 h-4 text-slate-400" />
               </div>
-              <div className="w-full h-3.5 bg-[#141a29] rounded-full overflow-hidden border border-[#2e2617]">
-                <div
-                  className="h-full bg-gradient-to-r from-[#d4af37] to-[#f59e0b] rounded-full transition-all duration-300 shadow-md shadow-amber-900/40"
-                  style={{ width: `${stats.percent}%` }}
-                />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={`${currentUpazila?.nameBn} এর মৌজার নাম বা জেএল নম্বর (যেমন: ${mouzas[0]?.jlNo || '০১'}) দিয়ে খুঁজুন...`}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-10 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition"
+                  title="অনুসন্ধান মুছুন"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* মৌজা গ্রিড বা নো-রেজাল্ট স্টেট */}
+            {filteredMouzas.length === 0 ? (
+              <div className="py-10 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+                <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-600">
+                  "{searchQuery}" এর সাথে মিলে এমন কোনো মৌজা পাওয়া যায়নি
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  মৌজার বাংলা বানান বা জেএল নম্বর পুনরায় যাচাই করুন
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="mt-3 text-xs font-semibold text-emerald-600 hover:underline"
+                >
+                  অনুসন্ধান রিসেট করুন
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 max-h-72 overflow-y-auto pr-1">
+                {filteredMouzas.map(m => {
+                  const isSelected = selectedMouzaIds.includes(m.id);
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => toggleMouza(m.id)}
+                      className={`cursor-pointer p-3 rounded-2xl border transition flex items-center justify-between select-none ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50/60 text-emerald-950 font-medium'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-sm">{m.nameBn}</div>
+                        <div className="text-[11px] text-slate-400">জেএল নং: {m.jlNo}</div>
+                      </div>
+                      {isSelected ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ডাউনলোড কিউ ও প্রগ্রেস প্যানেল */}
+        {tasks.length > 0 && (
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <DownloadCloud className="w-5 h-5 text-emerald-600" />
+                  ডাউনলোড কিউ স্টেটাস (সমগ্র অগ্রগতি: {stats.overallPercent}%)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  মোট: {stats.total} টি | সম্পন্ন: {stats.completed} | ডাউনলোড হচ্ছে: {stats.downloading} | অপেক্ষমাণ: {stats.pending}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isProcessing ? (
+                  <button
+                    onClick={pauseQueue}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition"
+                  >
+                    <Pause className="w-3.5 h-3.5" /> পজ করুন
+                  </button>
+                ) : (
+                  <button
+                    onClick={resumeQueue}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition"
+                  >
+                    <Play className="w-3.5 h-3.5" /> পুনরায় শুরু করুন
+                  </button>
+                )}
+                <button
+                  onClick={clearQueue}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> তালিকা মুছুন
+                </button>
               </div>
             </div>
 
-            {/* Task List Preview */}
-            <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-              {tasks.slice(0, 15).map(task => (
-                <div
-                  key={task.id}
-                  className="p-2.5 bg-[#141b2c] border border-[#261f14] rounded-xl flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center space-x-2 truncate">
-                    {task.status === 'COMPLETED' && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    )}
-                    {task.status === 'DOWNLOADING' && (
-                      <div className="w-4 h-4 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin shrink-0" />
-                    )}
-                    {task.status === 'PENDING' && (
-                      <Clock className="w-4 h-4 text-[#64748b] shrink-0" />
-                    )}
-                    {task.status === 'FAILED' && (
-                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                    )}
-                    <span className="font-semibold text-[#f8fafc] truncate">
-                      {task.fileName}
+            {/* ওভারঅল প্রগ্রেস বার */}
+            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${stats.overallPercent}%` }}
+              />
+            </div>
+
+            {/* লাইভ টাস্ক তালিকা */}
+            <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+              {tasks.map(t => (
+                <div key={t.id} className="py-2.5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-800">{t.mouzaName}</span>
+                    <span className="text-slate-400">(জেএল: {t.jlNo})</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px]">
+                      {t.upazilaName}, {t.districtName} [{t.recordType}]
                     </span>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      task.status === 'COMPLETED'
-                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                        : task.status === 'DOWNLOADING'
-                        ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                        : task.status === 'FAILED'
-                        ? 'bg-red-950 text-red-300 border border-red-800'
-                        : 'bg-[#1b2337] text-[#94a3b8]'
-                    }`}
-                  >
-                    {task.status}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {t.status === 'PENDING' && (
+                      <span className="text-slate-400 font-medium">অপেক্ষমাণ...</span>
+                    )}
+                    {t.status === 'DOWNLOADING' && (
+                      <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.progress}%
+                      </span>
+                    )}
+                    {t.status === 'COMPLETED' && (
+                      <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> সম্পন্ন
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
-              {tasks.length > 15 && (
-                <p className="text-center text-[11px] text-[#64748b] pt-1">
-                  + {tasks.length - 15} more records in sequential queue
-                </p>
-              )}
             </div>
-
-            {/* Save Master ZIP Button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={exportMasterZip}
-                disabled={stats.completed === 0 || isPackagingZip}
-                className="w-full h-14 bg-gradient-to-r from-[#d4af37] to-[#f59e0b] hover:from-[#f59e0b] hover:to-[#d4af37] text-[#090d16] font-extrabold text-base sm:text-lg rounded-2xl shadow-xl shadow-amber-900/40 flex items-center justify-center space-x-2 transition duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FolderArchive className="w-5 h-5 text-[#090d16]" />
-                <span>
-                  {isPackagingZip
-                    ? `Packaging Master ZIP (${zipProgress}%)...`
-                    : `Save Master ZIP to Phone (${stats.completed} Records)`}
-                </span>
-              </button>
-            </div>
-          </section>
+          </div>
         )}
-      </main>
+
+      </div>
     </div>
   );
-};
-
-export default LRMassDownloader;
+}
