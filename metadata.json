@@ -1,6 +1,6 @@
 {
-  "name": "LRmassDownload",
-  "description": "Offline archive, organizer, and master package utility for Bangladesh land records, khatians, and mouza maps.",
+  "name": "LRgetBD",
+  "description": "Free-first native Android land record downloader, organizer, validator, and offline archive utility for Bangladesh land records.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

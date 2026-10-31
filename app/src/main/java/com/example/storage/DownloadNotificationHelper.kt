@@ -2,19 +2,18 @@ package com.example.storage
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.example.MainActivity
-import com.example.R
 
 class DownloadNotificationHelper(private val context: Context) {
+
     companion object {
-        const val CHANNEL_ID = "land_archive_download_channel"
-        const val CHANNEL_NAME = "Land Archive Downloads"
-        const val NOTIFICATION_ID = 2026
+        const val CHANNEL_ID = "lrgetbd_download_channel"
+        const val CHANNEL_NAME = "LRgetBD ডাউনলোড ও আর্কাইভ নোটিফিকেশন"
+        const val NOTIFICATION_ID_PROMPT = 2101
+        const val NOTIFICATION_ID_PROGRESS = 2102
+        const val NOTIFICATION_ID_COMPLETE = 2103
     }
 
     init {
@@ -23,46 +22,62 @@ class DownloadNotificationHelper(private val context: Context) {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-                description = "Notifications for completed Land Archive master folder and ZIP downloads"
-                enableLights(true)
-                enableVibration(true)
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "বাংলাদেশ ল্যান্ড রেকর্ড ডাউনলোড নিশ্চিতকরণ, অগ্রগতি এবং ফোল্ডার সংরক্ষণের নোটিফিকেশন"
             }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            manager?.createNotificationChannel(channel)
         }
     }
 
-    fun showDownloadCompleteNotification(
-        upazilaName: String,
-        savedPath: String,
-        fileCount: Int
-    ) {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+    fun notifyDownloadPrompt(upazilaBn: String, mouzaCount: Int, folderLabel: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Master Folder Download Complete: $upazilaName")
-            .setContentText("All $fileCount files & subfolders saved to: $savedPath")
-            .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText("Upazila $upazilaName Master Folder and ZIP have been downloaded to Phone Memory.\nAll survey subfolders verified with 0 discrepancies.\nSaved Path: $savedPath")
-            )
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("LRgetBD: ডাউনলোড নিশ্চিতকরণ ($upazilaBn)")
+            .setContentText("আপনি কি $mouzaCount টি মৌজার ফাইল ফোন মেমোরিতে ($folderLabel) ডাউনলোড করতে চান?")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
             .build()
+        try {
+            manager.notify(NOTIFICATION_ID_PROMPT, notification)
+        } catch (_: SecurityException) {
+        }
+    }
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
+    fun notifyQueueProgress(completed: Int, total: Int, currentMouzaBn: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("LRgetBD: ল্যান্ড রেকর্ড সংগ্রহ চলছে ($completed/$total)")
+            .setContentText("চলমান মৌজা: $currentMouzaBn | SHA-256 যাচাইকরণ সক্রিয়")
+            .setProgress(total, completed, false)
+            .setOngoing(completed < total)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        try {
+            manager.notify(NOTIFICATION_ID_PROGRESS, notification)
+        } catch (_: SecurityException) {
+        }
+    }
+
+    fun notifyBatchCompleted(validatedCount: Int, duplicateCount: Int, failedCount: Int, savePath: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        manager.cancel(NOTIFICATION_ID_PROGRESS)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("LRgetBD: সংগ্রহ সম্পন্ন ($validatedCount টি যাচাইকৃত)")
+            .setContentText("সংরক্ষিত স্থান: $savePath (ডুপ্লিকেট: $duplicateCount, ব্যর্থ: $failedCount)")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        try {
+            manager.notify(NOTIFICATION_ID_COMPLETE, notification)
+        } catch (_: SecurityException) {
+        }
     }
 }

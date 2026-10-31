@@ -1,122 +1,65 @@
 package com.example.data
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.Serializable
 
-data class Division(
-    @SerializedName("name") val name: String,
-    @SerializedName("bnName") val bnName: String,
-    @SerializedName("districts") val districts: List<District> = emptyList()
-)
-
-data class District(
-    @SerializedName("name") val name: String,
-    @SerializedName("bnName") val bnName: String,
-    @SerializedName("upazilas") val upazilas: List<String> = emptyList(),
-    @SerializedName("mouzas") val mouzas: Map<String, List<MouzaInfo>> = emptyMap()
-)
-
+@Serializable
 data class MouzaInfo(
-    @SerializedName("name") val name: String,
-    @SerializedName("bnName") val bnName: String,
-    @SerializedName("jlNo") val jlNo: String,
-    @SerializedName("isSelected") val isSelected: Boolean = true
+    val id: String = "",
+    val name: String,
+    val bnName: String,
+    val jlNo: String,
+    val isSelected: Boolean = true
 )
 
-enum class DocumentType(
-    val code: String,
-    val enLabel: String,
-    val bnLabel: String,
-    val description: String
-) {
-    CS(
-        code = "CS",
-        enLabel = "CS Khatian",
-        bnLabel = "সিএস খতিয়ান",
-        description = "Cadastral Survey (1888–1940) First survey record"
-    ),
-    SA(
-        code = "SA",
-        enLabel = "SA Khatian",
-        bnLabel = "এসএ খতিয়ান",
-        description = "State Acquisition Survey (1956–1963)"
-    ),
-    RS(
-        code = "RS",
-        enLabel = "RS Khatian",
-        bnLabel = "আরএস খতিয়ান",
-        description = "Revisional Survey (Generally modern & authoritative)"
-    ),
-    BS(
-        code = "BS",
-        enLabel = "BS / BRS / City",
-        bnLabel = "বিএস / সিটি জরিপ",
-        description = "Bangladesh Survey / Dhaka City Survey (Ongoing/Latest)"
-    ),
-    MUTATION(
-        code = "MUTATION",
-        enLabel = "Namjari / Mutation",
-        bnLabel = "নামজারি খতিয়ান",
-        description = "E-Namjari / Mutation Order & Duplicate Khatian"
-    ),
-    DAKHILA(
-        code = "DAKHILA",
-        enLabel = "Khajna Dakhila",
-        bnLabel = "খাজনা দাখিলা",
-        description = "Land Development Tax Receipt (LD Tax)"
-    ),
-    MOUZA_MAP(
-        code = "MOUZA_MAP",
-        enLabel = "Mouza Map / Naksha",
-        bnLabel = "মৌজা নকশা / সিট",
-        description = "Cadastral parcel layout sheet map"
-    ),
-    DEED(
-        code = "DEED",
-        enLabel = "Deed / Dolil",
-        bnLabel = "রেজিস্ট্রি দলিল",
-        description = "Registered land deed / Sub-Kabala / Heba"
-    ),
-    OTHER(
-        code = "OTHER",
-        enLabel = "Other Record",
-        bnLabel = "অন্যান্য নথি",
-        description = "Court decree, warrant, or miscellaneous document"
-    );
+@Serializable
+data class District(
+    val name: String,
+    val bnName: String,
+    val upazilas: List<String>,
+    val mouzas: Map<String, List<MouzaInfo>> = emptyMap(),
+    val isPriority: Boolean = false
+)
 
-    companion object {
-        fun fromCode(code: String): DocumentType {
-            return entries.firstOrNull { it.code.equals(code, ignoreCase = true) } ?: OTHER
-        }
+@Serializable
+data class Division(
+    val name: String,
+    val bnName: String,
+    val districts: List<District>
+)
 
-        fun guessFromFileName(fileName: String): DocumentType {
-            val lower = fileName.lowercase()
-            return when {
-                lower.contains("cs") || lower.contains("সিএস") -> CS
-                lower.contains("sa") || lower.contains("এসএ") -> SA
-                lower.contains("rs") || lower.contains("আরএস") -> RS
-                lower.contains("bs") || lower.contains("brs") || lower.contains("city") || lower.contains("বিএস") || lower.contains("সিটি") -> BS
-                lower.contains("namjari") || lower.contains("mutation") || lower.contains("নামজারি") || lower.contains("নামজারী") -> MUTATION
-                lower.contains("dakhila") || lower.contains("khajna") || lower.contains("tax") || lower.contains("দাখিলা") || lower.contains("খাজনা") -> DAKHILA
-                lower.contains("map") || lower.contains("naksha") || lower.contains("sheet") || lower.contains("নকশা") || lower.contains("সিট") || lower.contains("ম্যাপ") -> MOUZA_MAP
-                lower.contains("deed") || lower.contains("dolil") || lower.contains("দলিল") -> DEED
-                else -> OTHER
-            }
-        }
-    }
+enum class CatalogueSourceType(val labelBn: String, val labelEn: String) {
+    OFFICIAL_BUNDLED("সরকারি/ভেরিফায়েড ক্যাটালগ (Verified Area Catalogue)", "Verified Bundled Catalogue"),
+    IMPORTED_CSV("ইউজার CSV ইম্পোর্ট (Imported CSV)", "User Imported CSV"),
+    IMPORTED_JSON("ইউজার JSON ইম্পোর্ট (Imported JSON)", "User Imported JSON"),
+    CACHED("লোকাল ক্যাশ (Cached)", "Cached Catalogue")
 }
 
-data class LandRecord(
-    val id: String,
-    val fileName: String,
-    val filePath: String,
-    val fileSize: Long,
-    val sha256: String,
-    val division: String,
-    val district: String,
-    val upazila: String,
-    val mouza: String,
-    val docType: DocumentType,
-    val khatianOrPlotNo: String = "",
-    val timestamp: Long = System.currentTimeMillis(),
-    val sourceUrl: String = ""
-)
+enum class SurveyCategory(val code: String, val nameBn: String, val nameEn: String) {
+    CS("CS", "সিএস (CS - Cadastral Survey)", "CS Survey"),
+    SA("SA", "এসএ (SA - State Acquisition)", "SA Survey"),
+    RS("RS", "আরএস (RS - Revisional Survey)", "RS Survey"),
+    BS_BRS("BRS", "বিএস/বিআরএস (BS/BRS - Bangladesh Survey)", "BS/BRS Survey"),
+    DIARA("DIARA", "দিয়ারা জরিপ (Diara Survey)", "Diara Survey"),
+    PETTY("PETTY", "পেটি জরিপ (Petty Survey)", "Petty Survey")
+}
+
+enum class RecordCategory(val code: String, val nameBn: String, val nameEn: String) {
+    KHATIAN("KHATIAN", "খতিয়ান / পর্চা (Khatian Volume)", "Khatian Record"),
+    MOUZA_MAP("MOUZA_MAP", "মৌজা ম্যাপ / নকশা (Mouza Map Sheet)", "Mouza Map"),
+    DAG_INDEX("DAG_INDEX", "দাগ সূচি (Plot/Dag Index)", "Plot Index")
+}
+
+enum class JobStatus(val labelBn: String, val badgeColorHex: Long) {
+    PENDING("অপেক্ষমাণ (PENDING)", 0xFF64748B),
+    DOWNLOADING("ডাউনলোড হচ্ছে (DOWNLOADING)", 0xFF0284C7),
+    DOWNLOADED_UNVALIDATED("ডাউনলোড সম্পন্ন - যাচাই বাকি", 0xFFD97706),
+    VALIDATED("যাচাইকৃত ও সংরক্ষিত (VALIDATED)", 0xFF059669),
+    VERIFIED("উৎস নিশ্চিতকৃত (VERIFIED)", 0xFF047857),
+    DUPLICATE("ডুপ্লিকেট ফাইল (DUPLICATE)", 0xFF7C3AED),
+    NOT_FOUND("পাওয়া যায়নি (NOT_FOUND)", 0xFF94A3B8),
+    FAILED("ব্যর্থ হয়েছে (FAILED)", 0xFFDC2626),
+    INCOMPLETE("অসম্পূর্ণ (INCOMPLETE)", 0xFFF59E0B),
+    AUTH_REQUIRED("লগইন প্রয়োজন (AUTH_REQUIRED)", 0xFFE11D48),
+    ACCESS_RESTRICTED("প্রবেশাধিকার সীমিত (ACCESS_RESTRICTED)", 0xFFBE123C),
+    SOURCE_UNVERIFIED("উৎস অযাচাইকৃত (SOURCE_UNVERIFIED)", 0xFF475569)
+}

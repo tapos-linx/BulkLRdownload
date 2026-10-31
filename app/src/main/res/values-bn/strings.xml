@@ -1,36 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LRmassDownload</string>
-    <string name="tab_mass">মাস ডাউনলোড</string>
-    <string name="tab_capture">ব্রাউজার / ডাউনলোড</string>
-    <string name="tab_records">সংরক্ষিত রেকর্ড</string>
-    <string name="tab_import">ইম্পোর্ট</string>
-    <string name="tab_master">মাস্টার জিপ</string>
-    <string name="tab_about">সম্পর্কে ও সহায়তা</string>
-    
-    <string name="division">বিভাগ</string>
-    <string name="district">জেলা</string>
-    <string name="upazila">উপজেলা</string>
-    <string name="mouza">মৌজা (নাম বা জে.এল. নম্বর)</string>
-    <string name="doc_type">রেকর্ডের ধরন</string>
-    <string name="khatian_no">খতিয়ান / দাগ নম্বর</string>
-    
-    <string name="url_hint">পোর্টাল লিংক লিখুন</string>
-    <string name="go">যান</string>
-    <string name="downloading">ফাইল সংরক্ষণ করা হচ্ছে…</string>
-    <string name="saved_to">সংরক্ষিত স্থান: %1$s</string>
-    <string name="duplicate_skipped">ফাইলটি পূর্বেই সংরক্ষিত (SHA-256 মিলে গেছে)।</string>
-    
-    <string name="import_title">স্থানীয় রেকর্ড ইম্পোর্ট (জিপ বা ফোল্ডার)</string>
-    <string name="import_instructions">বৈধভাবে সংগৃহীত জিপ ফাইল বা ফোল্ডার নির্বাচন করুন। সংরক্ষণের পূর্বে ডকুমেন্টের ধরন যাচাই করে ঠিক করুন।</string>
-    <string name="btn_pick_zip">জিপ (ZIP) ফাইল বেছে নিন</string>
-    <string name="btn_pick_folder">ফোল্ডার বেছে নিন</string>
-    <string name="btn_confirm_import">আর্কাইভে সংরক্ষণ করুন</string>
-    
-    <string name="master_zip_title">মাস্টার জিপ প্রস্তুতকরণ</string>
-    <string name="master_zip_desc">নির্বাচিত উপজেলার সংরক্ষিত সকল রেকর্ড manifest.tsv সহ একটি জিপ ফাইলে প্যাকেজ করুন।</string>
-    <string name="btn_generate_master_zip">উপজেলার মাস্টার জিপ তৈরি করুন</string>
-    <string name="zip_created">মাস্টার জিপ তৈরি সম্পন্ন: %1$s</string>
-    
-    <string name="about_title">ল্যান্ডআর্কাইভ বিডি সম্পর্কে</string>
-    <string name="about_disclaimer">সতর্কবার্তা ও ঘোষণা:\n\nল্যান্ডআর্কাইভ বিডি একটি সম্পূর্ণ অনানুষ্ঠানিক (Unofficial) ও স্বাধীন অ্যাপ্লিকেশন। এটি ভূমি রেকর্ড ও জরিপ অধিদপ্তর (DLRS), ভূমি মন্ত্রণালয়, বা বাংলাদেশ সরকারের কোনো সংস্থা কর্তৃক তৈরি বা অনুমোদিত নয়।\n\nঅ্যাপে সংরক্ষিত যেকোনো রেকর্ড সংশ্লিষ্ট উপজেলা ভূমি অফিস বা জেলা রেকর্ড রুম হতে সরকারিভাবে যাচাই করা আবশ্যক। এই অ্যাপ কোনো স্বয়ংক্রিয় ক্রলিং, ক্যাপচা বাইপাস বা বাল্ক অটোমেশন করে না। ব্যবহারকারী নিজে যা ডাউনলোড বা ইম্পোর্ট করেন কেবল তা ডিভাইসে সাজিয়ে সংরক্ষণ করা হয়।</string>
+    <string name="app_name">LRgetBD</string>
+    <string name="tab_home">মূল পাতা</string>
+    <string name="tab_area">এলাকা নির্বাচন</string>
+    <string name="tab_queue">কার্যসারি ও চলমান কাজ</string>
+    <string name="tab_archive">ফাইল ভাণ্ডার ও ইতিহাস</string>
+    <string name="tab_reports">প্রতিবেদন</string>
+    <string name="tab_settings">সেটিংস</string>
+    <string name="primary_action_start">সংগ্রহ শুরু করুন</string>
+    <string name="division_label">বিভাগ</string>
+    <string name="district_label">জেলা</string>
+    <string name="upazila_label">উপজেলা</string>
+    <string name="mouza_label">মৌজা</string>
+    <string name="survey_type_label">জরিপের ধরন</string>
+    <string name="record_type_label">রেকর্ডের ধরন</string>
+    <string name="select_all_mouzas">সব মৌজা নির্বাচন করুন</string>
+    <string name="deselect_all_mouzas">সব বাদ দিন</string>
+    <string name="choose_folder">ফোল্ডার নির্বাচন করুন (ফোন মেমোরি)</string>
+    <string name="confirm_download_title">ডাউনলোড নিশ্চিতকরণ</string>
+    <string name="confirm_download_message">আপনি কি নির্বাচিত মৌজাগুলোর ল্যান্ড রেকর্ড ডাউনলোড শুরু করতে এবং ফোনের মেমোরিতে সংরক্ষণ করতে চান?</string>
+    <string name="btn_confirm_yes">হ্যাঁ, ডাউনলোড করুন</string>
+    <string name="btn_confirm_no">না, বাতিল করুন</string>
+    <string name="export_queue_json">কিউ JSON এক্সপোর্ট</string>
+    <string name="import_csv_batch">CSV ব্যাচ আপলোড</string>
+    <string name="export_master_zip">মাস্টার জিপ সংরক্ষণ</string>
+    <string name="about_disclaimer">সতর্কবার্তা ও ঘোষণা:\n\nLRgetBD একটি সম্পূর্ণ বিনামূল্যে ব্যবহারযোগ্য (Free-First), অনানুষ্ঠানিক ও স্বাধীন নেটিভ অ্যান্ড্রয়েড ইউটিলিটি অ্যাপ্লিকেশন। এটি কোনো ক্যাপচা, ওটিপি বা সরকারি নিরাপত্তা ব্যবস্থা বাইপাস করে না। ব্যবহারকারী কর্তৃক অনুমোদিত উৎস হতে সংগৃহীত ফাইল SHA-256 চেকসাম ও PDF সিগনেচার যাচাই করে সরাসরি ফোনের মেমোরিতে সংরক্ষণ করা হয়।</string>
 </resources>
